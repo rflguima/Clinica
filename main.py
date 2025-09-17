@@ -1,7 +1,8 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox
 from tkinter import font
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+import calendar
 import re
 from database import DatabaseManager
 from models import Profissional, Paciente, Procedimento, Agendamento, StatusAgendamento
@@ -13,96 +14,66 @@ class ClinicaApp:
         self.root.geometry("1200x800")
         self.root.minsize(1000, 600)
         
-        # Configurar estilo
         self.setup_styles()
-        
-        # Inicializar banco de dados
         self.db = DatabaseManager()
-        
-        # Variável para armazenar o profissional logado
         self.profissional_logado = None
         
-        # Criar interface de login
+        self.cal_year = datetime.now().year
+        self.cal_month = datetime.now().month
+        self.data_selecionada_calendario = date.today()
+
         self.criar_tela_login()
     
     def setup_styles(self):
-        """Configura estilos da interface"""
         style = ttk.Style()
         style.theme_use('clam')
-        
-        # Configurar cores
         style.configure('Title.TLabel', font=('Arial', 16, 'bold'))
         style.configure('Heading.TLabel', font=('Arial', 12, 'bold'))
-        style.configure('Custom.Treeview', font=('Arial', 10))
+        style.configure('Custom.Treeview', font=('Arial', 10), rowheight=25)
         style.configure('Custom.Treeview.Heading', font=('Arial', 10, 'bold'))
-    
+        style.configure('CalendarDay.TButton', font=('Arial', 10), padding=5)
+        style.configure('Today.TButton', font=('Arial', 10, 'bold'), foreground='blue', padding=5)
+
     def criar_tela_login(self):
-        """Cria a tela de login/seleção de profissional"""
-        # Limpar a janela
         for widget in self.root.winfo_children():
             widget.destroy()
         
-        # Frame principal do login
         login_frame = ttk.Frame(self.root)
         login_frame.pack(expand=True, fill='both', padx=50, pady=50)
         
-        # Título
-        titulo = ttk.Label(login_frame, text="Sistema de Gestão de Clínica", style='Title.TLabel')
-        titulo.pack(pady=30)
+        ttk.Label(login_frame, text="Sistema de Gestão de Clínica", style='Title.TLabel').pack(pady=30)
+        ttk.Label(login_frame, text="Selecione seu perfil profissional", font=('Arial', 12)).pack(pady=10)
         
-        # Subtítulo
-        subtitulo = ttk.Label(login_frame, text="Selecione seu perfil profissional", font=('Arial', 12))
-        subtitulo.pack(pady=10)
-        
-        # Frame para seleção de profissional
         select_frame = ttk.Frame(login_frame)
         select_frame.pack(pady=30)
         
         ttk.Label(select_frame, text="Profissional:", font=('Arial', 11)).pack(anchor='w')
-        
         self.profissional_var = tk.StringVar()
-        self.profissional_combo = ttk.Combobox(select_frame, textvariable=self.profissional_var, 
-                                              width=40, font=('Arial', 11))
+        self.profissional_combo = ttk.Combobox(select_frame, textvariable=self.profissional_var, width=40, font=('Arial', 11), state='readonly')
         self.profissional_combo.pack(pady=5)
-        
-        # Carregar profissionais
         self.carregar_profissionais_login()
         
-        # Botões
         btn_frame = ttk.Frame(login_frame)
         btn_frame.pack(pady=30)
-        
-        ttk.Button(btn_frame, text="Entrar", command=self.fazer_login, 
-                  width=15).pack(side='left', padx=10)
-        ttk.Button(btn_frame, text="Cadastrar Novo Profissional", 
-                  command=self.cadastrar_profissional_inicial, width=25).pack(side='left', padx=10)
+        ttk.Button(btn_frame, text="Entrar", command=self.fazer_login, width=15).pack(side='left', padx=10)
+        ttk.Button(btn_frame, text="Cadastrar Novo Profissional", command=self.cadastrar_profissional_inicial, width=25).pack(side='left', padx=10)
     
     def carregar_profissionais_login(self):
-        """Carrega profissionais para o combo de login"""
         profissionais = self.db.get_profissionais()
-        valores = []
-        
-        for prof in profissionais:
-            valores.append(f"{prof[1]} - {prof[2]} (CRM: {prof[3]})")
-        
+        valores = [f"{prof[1]} - {prof[2]} (CRM: {prof[3]})" for prof in profissionais]
         self.profissional_combo['values'] = valores
-        
         if valores:
             self.profissional_combo.current(0)
     
     def cadastrar_profissional_inicial(self):
-        """Abre janela para cadastrar o primeiro profissional"""
         self.abrir_janela_profissional()
-        # Recarregar a lista após o cadastro
         self.carregar_profissionais_login()
     
     def fazer_login(self):
-        """Realiza o login do profissional selecionado"""
         if not self.profissional_var.get():
             messagebox.showwarning("Aviso", "Selecione um profissional!")
             return
         
-        # Extrair ID do profissional selecionado
         texto_selecionado = self.profissional_var.get()
         profissionais = self.db.get_profissionais()
         
@@ -117,347 +88,302 @@ class ClinicaApp:
             messagebox.showerror("Erro", "Profissional não encontrado!")
     
     def criar_interface_principal(self):
-        """Cria a interface principal do sistema"""
-        # Limpar a janela
         for widget in self.root.winfo_children():
             widget.destroy()
         
-        # Frame superior com informações do usuário
         header_frame = ttk.Frame(self.root)
         header_frame.pack(fill='x', padx=10, pady=5)
-        
-        ttk.Label(header_frame, text=f"Usuário: {self.profissional_logado.nome} - {self.profissional_logado.especialidade}", 
-                 style='Heading.TLabel').pack(side='left')
-        
+        ttk.Label(header_frame, text=f"Usuário: {self.profissional_logado.nome} - {self.profissional_logado.especialidade}", style='Heading.TLabel').pack(side='left')
         ttk.Button(header_frame, text="Logout", command=self.fazer_logout).pack(side='right')
         
-        # Notebook para as abas
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(expand=True, fill='both', padx=10, pady=5)
         
-        # Criar abas
-        self.criar_aba_profissionais()
-        self.criar_aba_pacientes()
-        self.criar_aba_procedimentos()
+        self.criar_aba_calendario()
         self.criar_aba_agendamentos()
-    
+        self.criar_aba_pacientes()
+        self.criar_aba_profissionais()
+        self.criar_aba_procedimentos()
+
     def fazer_logout(self):
-        """Faz logout e retorna à tela de login"""
         self.profissional_logado = None
         self.criar_tela_login()
+
+    # --- MÉTODOS DA ABA DE CALENDÁRIO ---
+    def criar_aba_calendario(self):
+        self.cal_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.cal_frame, text="Calendário")
+
+        top_frame = ttk.Frame(self.cal_frame)
+        top_frame.pack(fill='x', padx=10, pady=5)
+        bottom_frame = ttk.Frame(self.cal_frame)
+        bottom_frame.pack(expand=True, fill='both', padx=10, pady=5)
+
+        self.cal_container = ttk.Frame(top_frame)
+        self.cal_container.pack(pady=10)
+        self.label_dia_selecionado = ttk.Label(bottom_frame, text="", style='Heading.TLabel')
+        self.label_dia_selecionado.pack(anchor='w', pady=(5, 10))
+
+        columns = ('Horário', 'Paciente', 'Procedimento', 'Status')
+        self.tree_consultas_dia = ttk.Treeview(bottom_frame, columns=columns, show='headings', style='Custom.Treeview')
+        for col in columns: self.tree_consultas_dia.heading(col, text=col)
+        self.tree_consultas_dia.column('Horário', width=80, anchor='center')
+        self.tree_consultas_dia.column('Paciente', width=250)
+        self.tree_consultas_dia.column('Procedimento', width=250)
+        self.tree_consultas_dia.column('Status', width=100, anchor='center')
+        self.tree_consultas_dia.pack(expand=True, fill='both')
+        
+        self.desenhar_calendario()
+        self.selecionar_dia(date.today())
+        
+    def desenhar_calendario(self):
+        for widget in self.cal_container.winfo_children():
+            widget.destroy()
+
+        header_frame = ttk.Frame(self.cal_container)
+        header_frame.pack(pady=10)
+        ttk.Button(header_frame, text="<", command=self.mes_anterior, width=3).pack(side='left', padx=10)
+        self.cal_label = ttk.Label(header_frame, text=f"{calendar.month_name[self.cal_month].capitalize()} {self.cal_year}", style='Title.TLabel', width=20, anchor='center')
+        self.cal_label.pack(side='left')
+        ttk.Button(header_frame, text=">", command=self.proximo_mes, width=3).pack(side='left', padx=10)
+
+        days_frame = ttk.Frame(self.cal_container)
+        days_frame.pack()
+        days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+        for i, day in enumerate(days):
+            ttk.Label(days_frame, text=day, width=6, anchor='center', font=('Arial', 10, 'bold')).grid(row=0, column=i, padx=5, pady=5)
+
+        dates_frame = ttk.Frame(self.cal_container)
+        dates_frame.pack(pady=5)
+        cal = calendar.monthcalendar(self.cal_year, self.cal_month)
+        hoje = date.today()
+
+        for week_num, week in enumerate(cal):
+            for day_num, day in enumerate(week):
+                if day == 0: continue
+                
+                data_atual = date(self.cal_year, self.cal_month, day)
+                btn_style = 'Today.TButton' if data_atual == hoje else 'CalendarDay.TButton'
+                btn = ttk.Button(dates_frame, text=str(day), style=btn_style, command=lambda d=data_atual: self.selecionar_dia(d))
+                btn.grid(row=week_num, column=day_num, sticky="nsew", padx=2, pady=2)
     
+    def mes_anterior(self):
+        self.cal_month -= 1
+        if self.cal_month == 0:
+            self.cal_month = 12
+            self.cal_year -= 1
+        self.desenhar_calendario()
+        
+    def proximo_mes(self):
+        self.cal_month += 1
+        if self.cal_month == 13:
+            self.cal_month = 1
+            self.cal_year += 1
+        self.desenhar_calendario()
+
+    def selecionar_dia(self, data):
+        self.data_selecionada_calendario = data
+        self.label_dia_selecionado.config(text=f"Consultas para {data.strftime('%d/%m/%Y')}")
+        self.atualizar_lista_consultas_dia()
+
+    def atualizar_lista_consultas_dia(self):
+        for item in self.tree_consultas_dia.get_children():
+            self.tree_consultas_dia.delete(item)
+        data_str = self.data_selecionada_calendario.strftime('%Y-%m-%d')
+        consultas = self.db.get_agendamentos_por_data(data_str, self.profissional_logado.id)
+        if consultas:
+            for consulta in sorted(consultas, key=lambda x: x[4]):
+                hora = datetime.strptime(consulta[4], "%Y-%m-%d %H:%M:%S").strftime('%H:%M')
+                self.tree_consultas_dia.insert('', 'end', values=(hora, consulta[1], consulta[2], consulta[5].capitalize()))
+
+    # --- PRONTUÁRIO DO PACIENTE ---
+    def abrir_prontuario_paciente(self, paciente_id):
+        paciente_data = self.db.get_paciente_by_id(paciente_id)
+        if not paciente_data:
+            messagebox.showerror("Erro", "Paciente não encontrado!")
+            return
+            
+        paciente = Paciente.from_tuple(paciente_data)
+        janela = tk.Toplevel(self.root)
+        janela.title(f"Prontuário - {paciente.nome}")
+        janela.geometry("800x600")
+        janela.transient(self.root)
+        janela.grab_set()
+
+        notebook = ttk.Notebook(janela)
+        notebook.pack(expand=True, fill='both', padx=10, pady=10)
+
+        # Aba de Dados Básicos
+        frame_dados = ttk.Frame(notebook, padding="10")
+        notebook.add(frame_dados, text="Dados Básicos")
+
+        def add_readonly_info(parent, row, label, text):
+            ttk.Label(parent, text=label, font=('Arial', 10, 'bold')).grid(row=row, column=0, sticky='w', padx=5, pady=2)
+            ttk.Label(parent, text=text if text else "Não informado", wraplength=500).grid(row=row, column=1, sticky='w', padx=5, pady=2)
+
+        add_readonly_info(frame_dados, 0, "Nome Completo:", paciente.nome)
+        add_readonly_info(frame_dados, 1, "Data de Nascimento:", datetime.strptime(paciente.data_nascimento, "%Y-%m-%d").strftime("%d/%m/%Y") if paciente.data_nascimento else "")
+        add_readonly_info(frame_dados, 2, "Idade:", f"{paciente.calcular_idade()} anos" if paciente.data_nascimento else "N/A")
+        add_readonly_info(frame_dados, 3, "CPF:", paciente.cpf)
+        add_readonly_info(frame_dados, 4, "Estado Civil:", paciente.estado_civil)
+        add_readonly_info(frame_dados, 5, "Profissão:", paciente.profissao)
+        add_readonly_info(frame_dados, 6, "Telefone:", paciente.telefone)
+        add_readonly_info(frame_dados, 7, "Email:", paciente.email)
+        endereco = f"{paciente.rua}, {paciente.numero} - {paciente.bairro}, {paciente.cidade}/{paciente.estado} - CEP: {paciente.cep}"
+        add_readonly_info(frame_dados, 8, "Endereço:", endereco)
+        
+        # Aba de Anamnese
+        frame_anamnese = ttk.Frame(notebook, padding="10")
+        notebook.add(frame_anamnese, text="Anamnese")
+        
+        def add_readonly_text(parent, label, text):
+            ttk.Label(parent, text=label, font=('Arial', 10, 'bold')).pack(anchor='w', pady=(10,2))
+            text_widget = tk.Text(parent, height=3, wrap='word', bg='#f0f0f0', relief='flat', font=('Arial', 10))
+            text_widget.insert('1.0', text if text else "Não informado")
+            text_widget.config(state='disabled')
+            text_widget.pack(fill='x', expand=True)
+
+        add_readonly_text(frame_anamnese, "Queixa Principal:", paciente.queixa_principal)
+        add_readonly_text(frame_anamnese, "Histórico da Doença Atual:", paciente.historico_doenca_atual)
+        add_readonly_text(frame_anamnese, "Antecedentes Pessoais:", paciente.antecedentes_pessoais)
+        add_readonly_text(frame_anamnese, "Antecedentes Familiares:", paciente.antecedentes_familiares)
+        add_readonly_text(frame_anamnese, "Hábitos de Vida:", paciente.habitos_vida)
+        add_readonly_text(frame_anamnese, "Medicamentos em Uso:", paciente.medicamentos_em_uso)
+
+        # Aba de Histórico de Consultas
+        frame_historico = ttk.Frame(notebook)
+        notebook.add(frame_historico, text="Histórico de Consultas")
+        columns_hist = ('Procedimento', 'Profissional', 'Data/Hora', 'Status', 'Observações')
+        tree_historico = ttk.Treeview(frame_historico, columns=columns_hist, show='headings')
+        for col in columns_hist: tree_historico.heading(col, text=col)
+        tree_historico.pack(expand=True, fill='both', pady=10)
+        historico = self.db.get_historico_paciente(paciente_id)
+        for item in historico:
+            valores = list(item)
+            try: valores[2] = datetime.strptime(valores[2], "%Y-%m-%d %H:%M:%S").strftime("%d/%m/%Y %H:%M")
+            except: pass
+            tree_historico.insert('', 'end', values=valores)
+            
+        ttk.Button(janela, text="Fechar", command=janela.destroy).pack(padx=10, pady=5)
+
+    # --- MÉTODOS DE GERENCIAMENTO DAS ABAS ---
     def criar_aba_profissionais(self):
-        """Cria a aba de gerenciamento de profissionais"""
-        # Frame da aba
         prof_frame = ttk.Frame(self.notebook)
         self.notebook.add(prof_frame, text="Profissionais")
-        
-        # Frame superior com botões
         btn_frame = ttk.Frame(prof_frame)
         btn_frame.pack(fill='x', padx=10, pady=5)
+        ttk.Button(btn_frame, text="Novo Profissional", command=self.abrir_janela_profissional).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Editar", command=self.editar_profissional).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Remover", command=self.remover_profissional).pack(side='left', padx=5)
         
-        ttk.Button(btn_frame, text="Novo Profissional", 
-                  command=self.abrir_janela_profissional).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Editar", 
-                  command=self.editar_profissional).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Remover", 
-                  command=self.remover_profissional).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Atualizar", 
-                  command=self.carregar_profissionais).pack(side='left', padx=5)
-        
-        # Treeview para lista de profissionais
         columns = ('ID', 'Nome', 'Especialidade', 'CRM', 'Telefone', 'Email')
         self.tree_profissionais = ttk.Treeview(prof_frame, columns=columns, show='headings', style='Custom.Treeview')
-        
-        # Configurar colunas
-        self.tree_profissionais.heading('ID', text='ID')
-        self.tree_profissionais.heading('Nome', text='Nome')
-        self.tree_profissionais.heading('Especialidade', text='Especialidade')
-        self.tree_profissionais.heading('CRM', text='CRM/Registro')
-        self.tree_profissionais.heading('Telefone', text='Telefone')
-        self.tree_profissionais.heading('Email', text='Email')
-        
-        self.tree_profissionais.column('ID', width=50)
-        self.tree_profissionais.column('Nome', width=200)
-        self.tree_profissionais.column('Especialidade', width=150)
-        self.tree_profissionais.column('CRM', width=120)
-        self.tree_profissionais.column('Telefone', width=120)
-        self.tree_profissionais.column('Email', width=200)
-        
-        # Scrollbar
-        scrollbar_prof = ttk.Scrollbar(prof_frame, orient='vertical', command=self.tree_profissionais.yview)
-        self.tree_profissionais.configure(yscrollcommand=scrollbar_prof.set)
-        
-        # Pack treeview e scrollbar
-        self.tree_profissionais.pack(side='left', expand=True, fill='both', padx=(10, 0), pady=5)
-        scrollbar_prof.pack(side='right', fill='y', padx=(0, 10), pady=5)
-        
-        # Carregar dados
+        for col in columns: self.tree_profissionais.heading(col, text=col)
+        self.tree_profissionais.pack(expand=True, fill='both', padx=10, pady=5)
         self.carregar_profissionais()
-    
+
     def criar_aba_pacientes(self):
-        """Cria a aba de gerenciamento de pacientes"""
-        # Frame da aba
         pac_frame = ttk.Frame(self.notebook)
         self.notebook.add(pac_frame, text="Pacientes")
-        
-        # Frame superior com botões e busca
         top_frame = ttk.Frame(pac_frame)
         top_frame.pack(fill='x', padx=10, pady=5)
         
-        # Botões
         btn_frame = ttk.Frame(top_frame)
         btn_frame.pack(side='left')
+        ttk.Button(btn_frame, text="Novo Paciente", command=self.abrir_janela_paciente).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Editar", command=self.editar_paciente).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Remover", command=self.remover_paciente).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Prontuário", command=self.ver_prontuario_paciente_da_lista).pack(side='left', padx=5)
         
-        ttk.Button(btn_frame, text="Novo Paciente", 
-                  command=self.abrir_janela_paciente).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Editar", 
-                  command=self.editar_paciente).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Remover", 
-                  command=self.remover_paciente).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Histórico", 
-                  command=self.ver_historico_paciente).pack(side='left', padx=5)
-        
-        # Frame de busca
         search_frame = ttk.Frame(top_frame)
         search_frame.pack(side='right')
-        
-        ttk.Label(search_frame, text="Buscar:").pack(side='left', padx=5)
         self.search_var = tk.StringVar()
         search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=20)
         search_entry.pack(side='left', padx=5)
         search_entry.bind('<KeyRelease>', self.buscar_pacientes)
         
-        ttk.Button(search_frame, text="Limpar", 
-                  command=self.limpar_busca_pacientes).pack(side='left', padx=5)
-        
-        # Treeview para lista de pacientes
-        columns = ('ID', 'Nome', 'Telefone', 'CPF', 'Endereço', 'Data Nascimento', 'Idade')
+        columns = ('ID', 'Nome', 'Telefone', 'CPF', 'Cidade', 'Idade')
         self.tree_pacientes = ttk.Treeview(pac_frame, columns=columns, show='headings', style='Custom.Treeview')
-        
-        # Configurar colunas
-        self.tree_pacientes.heading('ID', text='ID')
-        self.tree_pacientes.heading('Nome', text='Nome')
-        self.tree_pacientes.heading('Telefone', text='Telefone')
-        self.tree_pacientes.heading('CPF', text='CPF')
-        self.tree_pacientes.heading('Endereço', text='Endereço')
-        self.tree_pacientes.heading('Data Nascimento', text='Nascimento')
-        self.tree_pacientes.heading('Idade', text='Idade')
-        
+        for col in columns: self.tree_pacientes.heading(col, text=col)
         self.tree_pacientes.column('ID', width=50)
-        self.tree_pacientes.column('Nome', width=200)
-        self.tree_pacientes.column('Telefone', width=120)
-        self.tree_pacientes.column('CPF', width=120)
-        self.tree_pacientes.column('Endereço', width=200)
-        self.tree_pacientes.column('Data Nascimento', width=100)
-        self.tree_pacientes.column('Idade', width=60)
-        
-        # Scrollbar
-        scrollbar_pac = ttk.Scrollbar(pac_frame, orient='vertical', command=self.tree_pacientes.yview)
-        self.tree_pacientes.configure(yscrollcommand=scrollbar_pac.set)
-        
-        # Pack treeview e scrollbar
-        self.tree_pacientes.pack(side='left', expand=True, fill='both', padx=(10, 0), pady=5)
-        scrollbar_pac.pack(side='right', fill='y', padx=(0, 10), pady=5)
-        
-        # Carregar dados
+        self.tree_pacientes.column('Nome', width=250)
+        self.tree_pacientes.pack(expand=True, fill='both', padx=10, pady=5)
         self.carregar_pacientes()
-    
+
     def criar_aba_procedimentos(self):
-        """Cria a aba de gerenciamento de procedimentos"""
-        # Frame da aba
         proc_frame = ttk.Frame(self.notebook)
         self.notebook.add(proc_frame, text="Procedimentos")
-        
-        # Frame superior com botões
         btn_frame = ttk.Frame(proc_frame)
         btn_frame.pack(fill='x', padx=10, pady=5)
+        ttk.Button(btn_frame, text="Novo Procedimento", command=self.abrir_janela_procedimento).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Editar", command=self.editar_procedimento).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Remover", command=self.remover_procedimento).pack(side='left', padx=5)
         
-        ttk.Button(btn_frame, text="Novo Procedimento", 
-                  command=self.abrir_janela_procedimento).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Editar", 
-                  command=self.editar_procedimento).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Remover", 
-                  command=self.remover_procedimento).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Atualizar", 
-                  command=self.carregar_procedimentos).pack(side='left', padx=5)
-        
-        # Treeview para lista de procedimentos
         columns = ('ID', 'Nome', 'Duração (min)', 'Valor (R$)')
         self.tree_procedimentos = ttk.Treeview(proc_frame, columns=columns, show='headings', style='Custom.Treeview')
-        
-        # Configurar colunas
-        self.tree_procedimentos.heading('ID', text='ID')
-        self.tree_procedimentos.heading('Nome', text='Nome do Procedimento')
-        self.tree_procedimentos.heading('Duração (min)', text='Duração (min)')
-        self.tree_procedimentos.heading('Valor (R$)', text='Valor (R$)')
-        
-        self.tree_procedimentos.column('ID', width=50)
-        self.tree_procedimentos.column('Nome', width=300)
-        self.tree_procedimentos.column('Duração (min)', width=120)
-        self.tree_procedimentos.column('Valor (R$)', width=120)
-        
-        # Scrollbar
-        scrollbar_proc = ttk.Scrollbar(proc_frame, orient='vertical', command=self.tree_procedimentos.yview)
-        self.tree_procedimentos.configure(yscrollcommand=scrollbar_proc.set)
-        
-        # Pack treeview e scrollbar
-        self.tree_procedimentos.pack(side='left', expand=True, fill='both', padx=(10, 0), pady=5)
-        scrollbar_proc.pack(side='right', fill='y', padx=(0, 10), pady=5)
-        
-        # Carregar dados
+        for col in columns: self.tree_procedimentos.heading(col, text=col)
+        self.tree_procedimentos.pack(expand=True, fill='both', padx=10, pady=5)
         self.carregar_procedimentos()
-    
+
     def criar_aba_agendamentos(self):
-        """Cria a aba de gerenciamento de agendamentos"""
-        # Frame da aba
         agend_frame = ttk.Frame(self.notebook)
-        self.notebook.add(agend_frame, text="Agendamentos")
-        
-        # Frame superior com botões e filtros
+        self.notebook.add(agend_frame, text="Lista de Agendamentos")
         top_frame = ttk.Frame(agend_frame)
         top_frame.pack(fill='x', padx=10, pady=5)
+        ttk.Button(top_frame, text="Novo Agendamento", command=self.abrir_janela_agendamento).pack(side='left', padx=5)
         
-        # Botões
-        btn_frame = ttk.Frame(top_frame)
-        btn_frame.pack(side='left')
-        
-        ttk.Button(btn_frame, text="Novo Agendamento", 
-                  command=self.abrir_janela_agendamento).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Editar", 
-                  command=self.editar_agendamento).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Remover", 
-                  command=self.remover_agendamento).pack(side='left', padx=5)
-        
-        # Frame de filtros
-        filter_frame = ttk.Frame(top_frame)
-        filter_frame.pack(side='right')
-        
-        ttk.Label(filter_frame, text="Data:").pack(side='left', padx=5)
-        self.data_filter_var = tk.StringVar()
-        self.data_filter_var.set(datetime.now().strftime("%Y-%m-%d"))
-        data_entry = ttk.Entry(filter_frame, textvariable=self.data_filter_var, width=12)
-        data_entry.pack(side='left', padx=5)
-        
-        ttk.Button(filter_frame, text="Filtrar por Data", 
-                  command=self.filtrar_agendamentos_data).pack(side='left', padx=5)
-        ttk.Button(filter_frame, text="Todos", 
-                  command=self.carregar_agendamentos).pack(side='left', padx=5)
-        
-        # Checkbox para mostrar apenas agendamentos do profissional logado
-        self.apenas_meus_var = tk.BooleanVar()
-        self.apenas_meus_var.set(True)
-        ttk.Checkbutton(filter_frame, text="Apenas meus agendamentos", 
-                       variable=self.apenas_meus_var, 
-                       command=self.carregar_agendamentos).pack(side='left', padx=5)
-        
-        # Treeview para lista de agendamentos
-        columns = ('ID', 'Paciente', 'Procedimento', 'Profissional', 'Data/Hora', 'Status', 'Observações')
+        columns = ('ID', 'Paciente', 'Procedimento', 'Profissional', 'Data/Hora', 'Status')
         self.tree_agendamentos = ttk.Treeview(agend_frame, columns=columns, show='headings', style='Custom.Treeview')
-        
-        # Configurar colunas
-        self.tree_agendamentos.heading('ID', text='ID')
-        self.tree_agendamentos.heading('Paciente', text='Paciente')
-        self.tree_agendamentos.heading('Procedimento', text='Procedimento')
-        self.tree_agendamentos.heading('Profissional', text='Profissional')
-        self.tree_agendamentos.heading('Data/Hora', text='Data/Hora')
-        self.tree_agendamentos.heading('Status', text='Status')
-        self.tree_agendamentos.heading('Observações', text='Observações')
-        
-        self.tree_agendamentos.column('ID', width=50)
-        self.tree_agendamentos.column('Paciente', width=150)
-        self.tree_agendamentos.column('Procedimento', width=150)
-        self.tree_agendamentos.column('Profissional', width=120)
-        self.tree_agendamentos.column('Data/Hora', width=130)
-        self.tree_agendamentos.column('Status', width=100)
-        self.tree_agendamentos.column('Observações', width=200)
-        
-        # Scrollbar
-        scrollbar_agend = ttk.Scrollbar(agend_frame, orient='vertical', command=self.tree_agendamentos.yview)
-        self.tree_agendamentos.configure(yscrollcommand=scrollbar_agend.set)
-        
-        # Pack treeview e scrollbar
-        self.tree_agendamentos.pack(side='left', expand=True, fill='both', padx=(10, 0), pady=5)
-        scrollbar_agend.pack(side='right', fill='y', padx=(0, 10), pady=5)
-        
-        # Carregar dados
+        for col in columns: self.tree_agendamentos.heading(col, text=col)
+        self.tree_agendamentos.column('ID', width=40)
+        self.tree_agendamentos.pack(expand=True, fill='both', padx=10, pady=5)
         self.carregar_agendamentos()
     
-    # Métodos para carregar dados nas listas
+    # --- MÉTODOS PARA CARREGAR DADOS ---
     def carregar_profissionais(self):
-        """Carrega profissionais na treeview"""
-        # Limpar dados existentes
-        for item in self.tree_profissionais.get_children():
-            self.tree_profissionais.delete(item)
-        
-        # Carregar novos dados
-        profissionais = self.db.get_profissionais()
-        for prof in profissionais:
-            self.tree_profissionais.insert('', 'end', values=prof)
+        if not hasattr(self, 'tree_profissionais'): return
+        for item in self.tree_profissionais.get_children(): self.tree_profissionais.delete(item)
+        for prof in self.db.get_profissionais() or []: self.tree_profissionais.insert('', 'end', values=prof)
     
-    def carregar_pacientes(self):
-        """Carrega pacientes na treeview"""
-        # Limpar dados existentes
-        for item in self.tree_pacientes.get_children():
-            self.tree_pacientes.delete(item)
+    def carregar_pacientes(self, pacientes_data=None):
+        if not hasattr(self, 'tree_pacientes'): return
+        for item in self.tree_pacientes.get_children(): self.tree_pacientes.delete(item)
         
-        # Carregar novos dados
-        pacientes = self.db.get_pacientes()
-        for pac in pacientes:
-            # Calcular idade
-            idade = ""
-            if pac[5]:  # data_nascimento
-                try:
-                    nascimento = datetime.strptime(pac[5], "%Y-%m-%d")
-                    hoje = datetime.now()
-                    idade = hoje.year - nascimento.year
-                    if hoje.month < nascimento.month or (hoje.month == nascimento.month and hoje.day < nascimento.day):
-                        idade -= 1
-                except:
-                    idade = ""
-            
-            # Inserir com idade calculada
-            valores = list(pac) + [idade]
-            self.tree_pacientes.insert('', 'end', values=valores)
+        pacientes = pacientes_data if pacientes_data is not None else self.db.get_pacientes()
+        if pacientes:
+            for pac in pacientes:
+                idade = ""
+                if pac[4]: # data_nascimento
+                    try:
+                        nasc = datetime.strptime(pac[4], "%Y-%m-%d").date()
+                        hoje = date.today()
+                        idade = hoje.year - nasc.year - ((hoje.month, hoje.day) < (nasc.month, nasc.day))
+                    except: pass
+                valores = (pac[0], pac[1], pac[2], pac[3], pac[5], idade) # id, nome, tel, cpf, cidade, idade
+                self.tree_pacientes.insert('', 'end', values=valores)
     
     def carregar_procedimentos(self):
-        """Carrega procedimentos na treeview"""
-        # Limpar dados existentes
-        for item in self.tree_procedimentos.get_children():
-            self.tree_procedimentos.delete(item)
-        
-        # Carregar novos dados
-        procedimentos = self.db.get_procedimentos()
-        for proc in procedimentos:
-            # Formatar valor
-            valores = list(proc)
-            valores[3] = f"R$ {valores[3]:.2f}"
-            self.tree_procedimentos.insert('', 'end', values=valores)
+        if not hasattr(self, 'tree_procedimentos'): return
+        for item in self.tree_procedimentos.get_children(): self.tree_procedimentos.delete(item)
+        for proc in self.db.get_procedimentos() or []:
+            valores = list(proc); valores[3] = f"R$ {valores[3]:.2f}"; self.tree_procedimentos.insert('', 'end', values=valores)
     
     def carregar_agendamentos(self):
-        """Carrega agendamentos na treeview"""
-        # Limpar dados existentes
-        for item in self.tree_agendamentos.get_children():
-            self.tree_agendamentos.delete(item)
-        
-        # Carregar novos dados
-        profissional_id = self.profissional_logado.id if self.apenas_meus_var.get() else None
-        agendamentos = self.db.get_agendamentos(profissional_id)
-        
-        for agend in agendamentos:
-            # Formatar data/hora
+        if not hasattr(self, 'tree_agendamentos'): return
+        for item in self.tree_agendamentos.get_children(): self.tree_agendamentos.delete(item)
+        for agend in self.db.get_agendamentos() or []:
             valores = list(agend)
-            try:
-                dt = datetime.strptime(valores[4], "%Y-%m-%d %H:%M:%S")
-                valores[4] = dt.strftime("%d/%m/%Y %H:%M")
-            except:
-                pass
-            
-            self.tree_agendamentos.insert('', 'end', values=valores)
+            try: valores[4] = datetime.strptime(valores[4], "%Y-%m-%d %H:%M:%S").strftime("%d/%m/%Y %H:%M")
+            except: pass
+            self.tree_agendamentos.insert('', 'end', values=(valores[0], valores[1], valores[2], valores[3], valores[4], valores[5]))
+
+    def buscar_pacientes(self, event=None):
+        termo = self.search_var.get().strip()
+        pacientes_encontrados = self.db.search_pacientes(termo) if termo else None
+        self.carregar_pacientes(pacientes_encontrados)
     
-    # Métodos para janelas de cadastro/edição
+    # --- JANELAS DE CADASTRO/EDIÇÃO ---
     def abrir_janela_profissional(self, profissional=None):
-        """Abre janela para cadastro/edição de profissional"""
         janela = tk.Toplevel(self.root)
         janela.title("Cadastro de Profissional" if not profissional else "Editar Profissional")
         janela.geometry("500x400")
@@ -465,22 +391,17 @@ class ClinicaApp:
         janela.transient(self.root)
         janela.grab_set()
         
-        # Centralizar janela
         janela.update_idletasks()
         x = (janela.winfo_screenwidth() // 2) - (janela.winfo_width() // 2)
         y = (janela.winfo_screenheight() // 2) - (janela.winfo_height() // 2)
         janela.geometry(f"+{x}+{y}")
         
-        # Frame principal
         main_frame = ttk.Frame(janela, padding="20")
         main_frame.pack(fill='both', expand=True)
         
-        # Título
-        titulo = ttk.Label(main_frame, text="Cadastro de Profissional" if not profissional else "Editar Profissional", 
-                          style='Title.TLabel')
+        titulo = ttk.Label(main_frame, text="Cadastro de Profissional" if not profissional else "Editar Profissional", style='Title.TLabel')
         titulo.pack(pady=(0, 20))
         
-        # Campos
         ttk.Label(main_frame, text="Nome:").pack(anchor='w')
         nome_var = tk.StringVar(value=profissional.nome if profissional else "")
         nome_entry = ttk.Entry(main_frame, textvariable=nome_var, width=50)
@@ -506,48 +427,25 @@ class ClinicaApp:
         email_entry = ttk.Entry(main_frame, textvariable=email_var, width=50)
         email_entry.pack(pady=(0, 20), fill='x')
         
-        # Botões
         btn_frame = ttk.Frame(main_frame)
         btn_frame.pack(fill='x')
         
         def salvar():
-            # Validações
-            if not nome_var.get().strip():
-                messagebox.showerror("Erro", "Nome é obrigatório!")
-                return
-            
-            if not especialidade_var.get().strip():
-                messagebox.showerror("Erro", "Especialidade é obrigatória!")
-                return
-            
-            if not crm_var.get().strip():
-                messagebox.showerror("Erro", "CRM/Registro é obrigatório!")
+            if not nome_var.get().strip() or not especialidade_var.get().strip() or not crm_var.get().strip():
+                messagebox.showerror("Erro", "Nome, Especialidade e CRM/Registro são obrigatórios!")
                 return
             
             try:
-                if profissional:  # Edição
-                    self.db.update_profissional(
-                        profissional.id,
-                        nome_var.get().strip(),
-                        especialidade_var.get().strip(),
-                        crm_var.get().strip(),
-                        telefone_var.get().strip(),
-                        email_var.get().strip()
-                    )
+                if profissional:
+                    self.db.update_profissional(profissional.id, nome_var.get().strip(), especialidade_var.get().strip(), crm_var.get().strip(), telefone_var.get().strip(), email_var.get().strip())
                     messagebox.showinfo("Sucesso", "Profissional atualizado com sucesso!")
-                else:  # Novo cadastro
-                    self.db.insert_profissional(
-                        nome_var.get().strip(),
-                        especialidade_var.get().strip(),
-                        crm_var.get().strip(),
-                        telefone_var.get().strip(),
-                        email_var.get().strip()
-                    )
+                else:
+                    self.db.insert_profissional(nome_var.get().strip(), especialidade_var.get().strip(), crm_var.get().strip(), telefone_var.get().strip(), email_var.get().strip())
                     messagebox.showinfo("Sucesso", "Profissional cadastrado com sucesso!")
                 
                 janela.destroy()
-                if hasattr(self, 'tree_profissionais'):
-                    self.carregar_profissionais()
+                if hasattr(self, 'profissional_combo'): self.carregar_profissionais_login()
+                if hasattr(self, 'tree_profissionais'): self.carregar_profissionais()
                 
             except Exception as e:
                 if "UNIQUE constraint failed" in str(e):
@@ -557,117 +455,140 @@ class ClinicaApp:
         
         ttk.Button(btn_frame, text="Salvar", command=salvar).pack(side='right', padx=5)
         ttk.Button(btn_frame, text="Cancelar", command=janela.destroy).pack(side='right')
-        
-        # Focar no primeiro campo
         nome_entry.focus()
-    
+
     def abrir_janela_paciente(self, paciente=None):
-        """Abre janela para cadastro/edição de paciente"""
         janela = tk.Toplevel(self.root)
         janela.title("Cadastro de Paciente" if not paciente else "Editar Paciente")
-        janela.geometry("500x500")
-        janela.resizable(False, False)
+        janela.geometry("800x800")
         janela.transient(self.root)
         janela.grab_set()
+
+        canvas = tk.Canvas(janela)
+        scrollbar = ttk.Scrollbar(janela, orient="vertical", command=canvas.yview)
+        main_frame = ttk.Frame(canvas, padding="20")
         
-        # Centralizar janela
-        janela.update_idletasks()
-        x = (janela.winfo_screenwidth() // 2) - (janela.winfo_width() // 2)
-        y = (janela.winfo_screenheight() // 2) - (janela.winfo_height() // 2)
-        janela.geometry(f"+{x}+{y}")
+        main_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=main_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
         
-        # Frame principal
-        main_frame = ttk.Frame(janela, padding="20")
-        main_frame.pack(fill='both', expand=True)
+        # --- Seção de Dados Pessoais ---
+        frame_pessoal = ttk.LabelFrame(main_frame, text="Dados Pessoais", padding="10")
+        frame_pessoal.pack(fill='x', expand=True, pady=5)
+        frame_pessoal.columnconfigure(1, weight=1)
         
-        # Título
-        titulo = ttk.Label(main_frame, text="Cadastro de Paciente" if not paciente else "Editar Paciente", 
-                          style='Title.TLabel')
-        titulo.pack(pady=(0, 20))
+        vars_pessoais = {
+            "Nome": tk.StringVar(value=paciente.nome if paciente else ""),
+            "Data de Nascimento (AAAA-MM-DD)": tk.StringVar(value=paciente.data_nascimento if paciente else ""),
+            "CPF": tk.StringVar(value=paciente.cpf if paciente else ""),
+            "Estado Civil": tk.StringVar(value=paciente.estado_civil if paciente else ""),
+            "Profissão": tk.StringVar(value=paciente.profissao if paciente else "")
+        }
+        for i, (label, var) in enumerate(vars_pessoais.items()):
+            ttk.Label(frame_pessoal, text=f"{label}:").grid(row=i, column=0, sticky='w', pady=3, padx=5)
+            ttk.Entry(frame_pessoal, textvariable=var, width=50).grid(row=i, column=1, sticky='ew', pady=3, padx=5)
+
+        # --- Seção de Contato e Endereço ---
+        frame_contato = ttk.LabelFrame(main_frame, text="Contato e Endereço", padding="10")
+        frame_contato.pack(fill='x', expand=True, pady=5)
+        frame_contato.columnconfigure(1, weight=1)
+        frame_contato.columnconfigure(3, weight=1)
+
+        vars_contato = {
+            "Telefone": tk.StringVar(value=paciente.telefone if paciente else ""),
+            "Email": tk.StringVar(value=paciente.email if paciente else ""),
+            "Rua": tk.StringVar(value=paciente.rua if paciente else ""),
+            "Número": tk.StringVar(value=paciente.numero if paciente else ""),
+            "Bairro": tk.StringVar(value=paciente.bairro if paciente else ""),
+            "Cidade": tk.StringVar(value=paciente.cidade if paciente else ""),
+            "Estado": tk.StringVar(value=paciente.estado if paciente else ""),
+            "CEP": tk.StringVar(value=paciente.cep if paciente else "")
+        }
         
-        # Campos
-        ttk.Label(main_frame, text="Nome:").pack(anchor='w')
-        nome_var = tk.StringVar(value=paciente.nome if paciente else "")
-        nome_entry = ttk.Entry(main_frame, textvariable=nome_var, width=50)
-        nome_entry.pack(pady=(0, 10), fill='x')
+        ttk.Label(frame_contato, text="Telefone:").grid(row=0, column=0, sticky='w', pady=3, padx=5)
+        ttk.Entry(frame_contato, textvariable=vars_contato["Telefone"]).grid(row=0, column=1, columnspan=3, sticky='ew', pady=3, padx=5)
+        ttk.Label(frame_contato, text="Email:").grid(row=1, column=0, sticky='w', pady=3, padx=5)
+        ttk.Entry(frame_contato, textvariable=vars_contato["Email"]).grid(row=1, column=1, columnspan=3, sticky='ew', pady=3, padx=5)
+        ttk.Label(frame_contato, text="Rua:").grid(row=2, column=0, sticky='w', pady=3, padx=5)
+        ttk.Entry(frame_contato, textvariable=vars_contato["Rua"]).grid(row=2, column=1, columnspan=3, sticky='ew', pady=3, padx=5)
         
-        ttk.Label(main_frame, text="Telefone:").pack(anchor='w')
-        telefone_var = tk.StringVar(value=paciente.telefone if paciente else "")
-        telefone_entry = ttk.Entry(main_frame, textvariable=telefone_var, width=50)
-        telefone_entry.pack(pady=(0, 10), fill='x')
+        ttk.Label(frame_contato, text="Número:").grid(row=3, column=0, sticky='w', pady=3, padx=5)
+        ttk.Entry(frame_contato, textvariable=vars_contato["Número"]).grid(row=3, column=1, sticky='ew', pady=3, padx=5)
+        ttk.Label(frame_contato, text="Bairro:").grid(row=3, column=2, sticky='w', pady=3, padx=5)
+        ttk.Entry(frame_contato, textvariable=vars_contato["Bairro"]).grid(row=3, column=3, sticky='ew', pady=3, padx=5)
+
+        ttk.Label(frame_contato, text="Cidade:").grid(row=4, column=0, sticky='w', pady=3, padx=5)
+        ttk.Entry(frame_contato, textvariable=vars_contato["Cidade"]).grid(row=4, column=1, sticky='ew', pady=3, padx=5)
+        ttk.Label(frame_contato, text="Estado:").grid(row=4, column=2, sticky='w', pady=3, padx=5)
+        ttk.Entry(frame_contato, textvariable=vars_contato["Estado"]).grid(row=4, column=3, sticky='ew', pady=3, padx=5)
         
-        ttk.Label(main_frame, text="CPF:").pack(anchor='w')
-        cpf_var = tk.StringVar(value=paciente.cpf if paciente else "")
-        cpf_entry = ttk.Entry(main_frame, textvariable=cpf_var, width=50)
-        cpf_entry.pack(pady=(0, 10), fill='x')
+        ttk.Label(frame_contato, text="CEP:").grid(row=5, column=0, sticky='w', pady=3, padx=5)
+        ttk.Entry(frame_contato, textvariable=vars_contato["CEP"]).grid(row=5, column=1, sticky='ew', pady=3, padx=5)
+
+        # --- Seção de Anamnese ---
+        frame_anamnese = ttk.LabelFrame(main_frame, text="Anamnese", padding="10")
+        frame_anamnese.pack(fill='x', expand=True, pady=5)
+        frame_anamnese.columnconfigure(1, weight=1)
         
-        ttk.Label(main_frame, text="Endereço:").pack(anchor='w')
-        endereco_var = tk.StringVar(value=paciente.endereco if paciente else "")
-        endereco_entry = ttk.Entry(main_frame, textvariable=endereco_var, width=50)
-        endereco_entry.pack(pady=(0, 10), fill='x')
+        def create_text_field(parent, label, row, text_value=""):
+            ttk.Label(parent, text=f"{label}:").grid(row=row, column=0, sticky='nw', pady=5, padx=5)
+            text_widget = tk.Text(parent, height=3, width=60, wrap='word', font=('Arial', 10))
+            text_widget.grid(row=row, column=1, sticky='ew', pady=5, padx=5)
+            if text_value: text_widget.insert('1.0', text_value)
+            return text_widget
+
+        anamnese_texts = {
+            "queixa": create_text_field(frame_anamnese, "Queixa Principal", 0, paciente.queixa_principal if paciente else ""),
+            "historico": create_text_field(frame_anamnese, "Histórico da Doença Atual", 1, paciente.historico_doenca_atual if paciente else ""),
+            "ant_pessoais": create_text_field(frame_anamnese, "Antecedentes Pessoais", 2, paciente.antecedentes_pessoais if paciente else ""),
+            "ant_familiares": create_text_field(frame_anamnese, "Antecedentes Familiares", 3, paciente.antecedentes_familiares if paciente else ""),
+            "habitos": create_text_field(frame_anamnese, "Hábitos de Vida", 4, paciente.habitos_vida if paciente else ""),
+            "medicamentos": create_text_field(frame_anamnese, "Medicamentos em Uso", 5, paciente.medicamentos_em_uso if paciente else "")
+        }
         
-        ttk.Label(main_frame, text="Data de Nascimento (AAAA-MM-DD):").pack(anchor='w')
-        data_nasc_var = tk.StringVar(value=paciente.data_nascimento if paciente else "")
-        data_nasc_entry = ttk.Entry(main_frame, textvariable=data_nasc_var, width=50)
-        data_nasc_entry.pack(pady=(0, 20), fill='x')
-        
-        # Botões
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill='x')
-        
+        btn_frame.pack(fill='x', pady=20)
+
         def salvar():
-            # Validações
-            if not nome_var.get().strip():
-                messagebox.showerror("Erro", "Nome é obrigatório!")
-                return
-            
-            # Validar formato da data
-            if data_nasc_var.get().strip():
-                try:
-                    datetime.strptime(data_nasc_var.get().strip(), "%Y-%m-%d")
-                except ValueError:
-                    messagebox.showerror("Erro", "Data de nascimento deve estar no formato AAAA-MM-DD!")
-                    return
-            
             try:
-                if paciente:  # Edição
-                    self.db.update_paciente(
-                        paciente.id,
-                        nome_var.get().strip(),
-                        telefone_var.get().strip(),
-                        cpf_var.get().strip(),
-                        endereco_var.get().strip(),
-                        data_nasc_var.get().strip()
-                    )
-                    messagebox.showinfo("Sucesso", "Paciente atualizado com sucesso!")
-                else:  # Novo cadastro
-                    self.db.insert_paciente(
-                        nome_var.get().strip(),
-                        telefone_var.get().strip(),
-                        cpf_var.get().strip(),
-                        endereco_var.get().strip(),
-                        data_nasc_var.get().strip()
-                    )
-                    messagebox.showinfo("Sucesso", "Paciente cadastrado com sucesso!")
+                dados = {var_name.split(' ')[0]: var.get().strip() for var_name, var in (list(vars_pessoais.items()) + list(vars_contato.items()))}
+                dados_anamnese = {text_name: text_widget.get("1.0", tk.END).strip() for text_name, text_widget in anamnese_texts.items()}
                 
+                if not dados["Nome"]:
+                    messagebox.showerror("Erro", "O nome do paciente é obrigatório.")
+                    return
+                if dados["Data"] and not re.match(r'^\d{4}-\d{2}-\d{2}$', dados["Data"]):
+                    messagebox.showerror("Erro", "Formato da data de nascimento inválido. Use AAAA-MM-DD.")
+                    return
+
+                params = (
+                    dados["Nome"], dados["Data"], dados["CPF"], dados["Estado"], dados["Profissão"],
+                    dados["Telefone"], dados["Email"], dados["Rua"], dados["Número"], dados["Bairro"], dados["Cidade"],
+                    vars_contato["Estado"].get(), dados["CEP"], dados_anamnese["queixa"], dados_anamnese["historico"],
+                    dados_anamnese["ant_pessoais"], dados_anamnese["ant_familiares"], dados_anamnese["habitos"],
+                    dados_anamnese["medicamentos"]
+                )
+
+                if paciente:
+                    self.db.update_paciente(paciente.id, *params)
+                else:
+                    self.db.insert_paciente(*params)
+                
+                messagebox.showinfo("Sucesso", "Paciente salvo com sucesso!")
                 janela.destroy()
-                if hasattr(self, 'tree_pacientes'):
-                    self.carregar_pacientes()
-                
+                self.carregar_pacientes()
             except Exception as e:
                 if "UNIQUE constraint failed" in str(e):
                     messagebox.showerror("Erro", "Este CPF já está cadastrado!")
                 else:
-                    messagebox.showerror("Erro", f"Erro ao salvar: {str(e)}")
-        
+                    messagebox.showerror("Erro", f"Ocorreu um erro ao salvar: {e}")
+
         ttk.Button(btn_frame, text="Salvar", command=salvar).pack(side='right', padx=5)
         ttk.Button(btn_frame, text="Cancelar", command=janela.destroy).pack(side='right')
-        
-        # Focar no primeiro campo
-        nome_entry.focus()
-    
+
     def abrir_janela_procedimento(self, procedimento=None):
-        """Abre janela para cadastro/edição de procedimento"""
         janela = tk.Toplevel(self.root)
         janela.title("Cadastro de Procedimento" if not procedimento else "Editar Procedimento")
         janela.geometry("450x350")
@@ -675,22 +596,17 @@ class ClinicaApp:
         janela.transient(self.root)
         janela.grab_set()
         
-        # Centralizar janela
         janela.update_idletasks()
         x = (janela.winfo_screenwidth() // 2) - (janela.winfo_width() // 2)
         y = (janela.winfo_screenheight() // 2) - (janela.winfo_height() // 2)
         janela.geometry(f"+{x}+{y}")
         
-        # Frame principal
         main_frame = ttk.Frame(janela, padding="20")
         main_frame.pack(fill='both', expand=True)
         
-        # Título
-        titulo = ttk.Label(main_frame, text="Cadastro de Procedimento" if not procedimento else "Editar Procedimento", 
-                          style='Title.TLabel')
+        titulo = ttk.Label(main_frame, text="Cadastro de Procedimento" if not procedimento else "Editar Procedimento", style='Title.TLabel')
         titulo.pack(pady=(0, 20))
         
-        # Campos
         ttk.Label(main_frame, text="Nome do Procedimento:").pack(anchor='w')
         nome_var = tk.StringVar(value=procedimento.nome if procedimento else "")
         nome_entry = ttk.Entry(main_frame, textvariable=nome_var, width=50)
@@ -706,313 +622,203 @@ class ClinicaApp:
         valor_entry = ttk.Entry(main_frame, textvariable=valor_var, width=50)
         valor_entry.pack(pady=(0, 20), fill='x')
         
-        # Botões
         btn_frame = ttk.Frame(main_frame)
         btn_frame.pack(fill='x')
         
         def salvar():
-            # Validações
             if not nome_var.get().strip():
                 messagebox.showerror("Erro", "Nome do procedimento é obrigatório!")
                 return
-            
             try:
                 duracao = int(duracao_var.get().strip())
-                if duracao <= 0:
-                    raise ValueError()
+                if duracao <= 0: raise ValueError()
             except ValueError:
                 messagebox.showerror("Erro", "Duração deve ser um número inteiro positivo!")
                 return
-            
             try:
                 valor = float(valor_var.get().strip().replace(',', '.'))
-                if valor < 0:
-                    raise ValueError()
+                if valor < 0: raise ValueError()
             except ValueError:
                 messagebox.showerror("Erro", "Valor deve ser um número positivo!")
                 return
             
             try:
-                if procedimento:  # Edição
-                    self.db.update_procedimento(
-                        procedimento.id,
-                        nome_var.get().strip(),
-                        duracao,
-                        valor
-                    )
+                if procedimento:
+                    self.db.update_procedimento(procedimento.id, nome_var.get().strip(), duracao, valor)
                     messagebox.showinfo("Sucesso", "Procedimento atualizado com sucesso!")
-                else:  # Novo cadastro
-                    self.db.insert_procedimento(
-                        nome_var.get().strip(),
-                        duracao,
-                        valor
-                    )
+                else:
+                    self.db.insert_procedimento(nome_var.get().strip(), duracao, valor)
                     messagebox.showinfo("Sucesso", "Procedimento cadastrado com sucesso!")
                 
                 janela.destroy()
-                if hasattr(self, 'tree_procedimentos'):
-                    self.carregar_procedimentos()
-                
+                if hasattr(self, 'tree_procedimentos'): self.carregar_procedimentos()
             except Exception as e:
                 messagebox.showerror("Erro", f"Erro ao salvar: {str(e)}")
         
         ttk.Button(btn_frame, text="Salvar", command=salvar).pack(side='right', padx=5)
         ttk.Button(btn_frame, text="Cancelar", command=janela.destroy).pack(side='right')
-        
-        # Focar no primeiro campo
         nome_entry.focus()
-    
-    def abrir_janela_agendamento(self, agendamento=None):
-        """Abre janela para cadastro/edição de agendamento"""
+
+    def abrir_janela_agendamento(self, agendamento=None, data_hora_preenchida=None):
         janela = tk.Toplevel(self.root)
-        janela.title("Novo Agendamento" if not agendamento else "Editar Agendamento")
+        janela.title("Novo Agendamento")
         janela.geometry("500x600")
         janela.resizable(False, False)
         janela.transient(self.root)
         janela.grab_set()
         
-        # Centralizar janela
         janela.update_idletasks()
         x = (janela.winfo_screenwidth() // 2) - (janela.winfo_width() // 2)
         y = (janela.winfo_screenheight() // 2) - (janela.winfo_height() // 2)
         janela.geometry(f"+{x}+{y}")
         
-        # Frame principal
         main_frame = ttk.Frame(janela, padding="20")
         main_frame.pack(fill='both', expand=True)
         
-        # Título
-        titulo = ttk.Label(main_frame, text="Novo Agendamento" if not agendamento else "Editar Agendamento", 
-                          style='Title.TLabel')
+        titulo = ttk.Label(main_frame, text="Novo Agendamento", style='Title.TLabel')
         titulo.pack(pady=(0, 20))
         
-        # Paciente
         ttk.Label(main_frame, text="Paciente:").pack(anchor='w')
         paciente_var = tk.StringVar()
-        paciente_combo = ttk.Combobox(main_frame, textvariable=paciente_var, width=47)
+        paciente_combo = ttk.Combobox(main_frame, textvariable=paciente_var, width=47, state='readonly')
         paciente_combo.pack(pady=(0, 10), fill='x')
-        
-        # Carregar pacientes
-        pacientes = self.db.get_pacientes()
-        pacientes_valores = []
-        pacientes_dict = {}
-        
-        for pac in pacientes:
-            texto = f"{pac[1]} - CPF: {pac[3]}"
-            pacientes_valores.append(texto)
-            pacientes_dict[texto] = pac[0]
-        
+        pacientes = self.db.get_pacientes() or []
+        pacientes_valores = [f"{pac[1]} - CPF: {pac[3]}" for pac in pacientes]
+        pacientes_dict = {f"{pac[1]} - CPF: {pac[3]}": pac[0] for pac in pacientes}
         paciente_combo['values'] = pacientes_valores
         
-        # Procedimento
         ttk.Label(main_frame, text="Procedimento:").pack(anchor='w')
         procedimento_var = tk.StringVar()
-        procedimento_combo = ttk.Combobox(main_frame, textvariable=procedimento_var, width=47)
+        procedimento_combo = ttk.Combobox(main_frame, textvariable=procedimento_var, width=47, state='readonly')
         procedimento_combo.pack(pady=(0, 10), fill='x')
-        
-        # Carregar procedimentos
-        procedimentos = self.db.get_procedimentos()
-        procedimentos_valores = []
-        procedimentos_dict = {}
-        
-        for proc in procedimentos:
-            texto = f"{proc[1]} - {proc[2]}min - R$ {proc[3]:.2f}"
-            procedimentos_valores.append(texto)
-            procedimentos_dict[texto] = proc[0]
-        
+        procedimentos = self.db.get_procedimentos() or []
+        procedimentos_valores = [f"{proc[1]} - {proc[2]}min - R$ {proc[3]:.2f}" for proc in procedimentos]
+        procedimentos_dict = {f"{proc[1]} - {proc[2]}min - R$ {proc[3]:.2f}": proc[0] for proc in procedimentos}
         procedimento_combo['values'] = procedimentos_valores
         
-        # Profissional
         ttk.Label(main_frame, text="Profissional:").pack(anchor='w')
         profissional_var = tk.StringVar()
-        profissional_combo = ttk.Combobox(main_frame, textvariable=profissional_var, width=47)
+        profissional_combo = ttk.Combobox(main_frame, textvariable=profissional_var, width=47, state='readonly')
         profissional_combo.pack(pady=(0, 10), fill='x')
-        
-        # Carregar profissionais
-        profissionais = self.db.get_profissionais()
-        profissionais_valores = []
-        profissionais_dict = {}
-        
-        for prof in profissionais:
-            texto = f"{prof[1]} - {prof[2]}"
-            profissionais_valores.append(texto)
-            profissionais_dict[texto] = prof[0]
-        
+        profissionais = self.db.get_profissionais() or []
+        profissionais_valores = [f"{prof[1]} - {prof[2]}" for prof in profissionais]
+        profissionais_dict = {f"{prof[1]} - {prof[2]}": prof[0] for prof in profissionais}
         profissional_combo['values'] = profissionais_valores
-        
-        # Definir profissional logado como padrão
         prof_logado_texto = f"{self.profissional_logado.nome} - {self.profissional_logado.especialidade}"
         if prof_logado_texto in profissionais_valores:
             profissional_var.set(prof_logado_texto)
         
-        # Data
+        data_var = tk.StringVar()
+        hora_var = tk.StringVar()
+        if data_hora_preenchida:
+            try:
+                dt = datetime.strptime(data_hora_preenchida, "%Y-%m-%d %H:%M")
+                data_var.set(dt.strftime("%Y-%m-%d")); hora_var.set(dt.strftime("%H:%M"))
+            except ValueError:
+                data_var.set(datetime.now().strftime("%Y-%m-%d")); hora_var.set("09:00")
+        else:
+            data_var.set(datetime.now().strftime("%Y-%m-%d")); hora_var.set("09:00")
+        
         ttk.Label(main_frame, text="Data (AAAA-MM-DD):").pack(anchor='w')
-        data_var = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
-        data_entry = ttk.Entry(main_frame, textvariable=data_var, width=50)
-        data_entry.pack(pady=(0, 10), fill='x')
-        
-        # Hora
+        ttk.Entry(main_frame, textvariable=data_var, width=50).pack(pady=(0, 10), fill='x')
         ttk.Label(main_frame, text="Hora (HH:MM):").pack(anchor='w')
-        hora_var = tk.StringVar(value="09:00")
-        hora_entry = ttk.Entry(main_frame, textvariable=hora_var, width=50)
-        hora_entry.pack(pady=(0, 10), fill='x')
+        ttk.Entry(main_frame, textvariable=hora_var, width=50).pack(pady=(0, 10), fill='x')
         
-        # Status
         ttk.Label(main_frame, text="Status:").pack(anchor='w')
         status_var = tk.StringVar(value="agendado")
-        status_combo = ttk.Combobox(main_frame, textvariable=status_var, width=47)
-        status_combo['values'] = ["agendado", "concluido", "cancelado"]
+        status_combo = ttk.Combobox(main_frame, textvariable=status_var, width=47, state='readonly', values=["agendado", "concluido", "cancelado"])
         status_combo.pack(pady=(0, 10), fill='x')
         
-        # Observações
         ttk.Label(main_frame, text="Observações:").pack(anchor='w')
         obs_text = tk.Text(main_frame, height=4, width=50)
         obs_text.pack(pady=(0, 20), fill='x')
         
-        # Se for edição, preencher campos
-        if agendamento:
-            # Aqui você precisaria carregar os dados do agendamento
-            # Por simplicidade, vou deixar os campos vazios
-            pass
-        
-        # Botões
         btn_frame = ttk.Frame(main_frame)
         btn_frame.pack(fill='x')
         
         def salvar():
-            # Validações
-            if not paciente_var.get():
-                messagebox.showerror("Erro", "Selecione um paciente!")
+            if not all([paciente_var.get(), procedimento_var.get(), profissional_var.get()]):
+                messagebox.showerror("Erro", "Paciente, Procedimento e Profissional são obrigatórios!")
                 return
-            
-            if not procedimento_var.get():
-                messagebox.showerror("Erro", "Selecione um procedimento!")
-                return
-            
-            if not profissional_var.get():
-                messagebox.showerror("Erro", "Selecione um profissional!")
-                return
-            
-            # Validar data e hora
             try:
-                data_hora_str = f"{data_var.get()} {hora_var.get()}:00"
+                data_hora_str = f"{data_var.get().strip()} {hora_var.get().strip()}:00"
                 datetime.strptime(data_hora_str, "%Y-%m-%d %H:%M:%S")
             except ValueError:
-                messagebox.showerror("Erro", "Data ou hora inválida!")
+                messagebox.showerror("Erro", "Formato de data (AAAA-MM-DD) ou hora (HH:MM) inválido!")
                 return
             
             try:
-                paciente_id = pacientes_dict[paciente_var.get()]
-                procedimento_id = procedimentos_dict[procedimento_var.get()]
-                profissional_id = profissionais_dict[profissional_var.get()]
-                observacoes = obs_text.get("1.0", tk.END).strip()
-                
-                if agendamento:  # Edição
-                    self.db.update_agendamento(
-                        agendamento.id,
-                        paciente_id,
-                        procedimento_id,
-                        profissional_id,
-                        data_hora_str,
-                        status_var.get(),
-                        observacoes
-                    )
-                    messagebox.showinfo("Sucesso", "Agendamento atualizado com sucesso!")
-                else:  # Novo cadastro
-                    self.db.insert_agendamento(
-                        paciente_id,
-                        procedimento_id,
-                        profissional_id,
-                        data_hora_str,
-                        status_var.get(),
-                        observacoes
-                    )
-                    messagebox.showinfo("Sucesso", "Agendamento cadastrado com sucesso!")
-                
+                self.db.insert_agendamento(pacientes_dict[paciente_var.get()], procedimentos_dict[procedimento_var.get()], 
+                                           profissionais_dict[profissional_var.get()], data_hora_str, status_var.get(), 
+                                           obs_text.get("1.0", tk.END).strip())
+                messagebox.showinfo("Sucesso", "Agendamento cadastrado com sucesso!")
                 janela.destroy()
-                if hasattr(self, 'tree_agendamentos'):
-                    self.carregar_agendamentos()
-                
+                if hasattr(self, 'tree_agendamentos'): self.carregar_agendamentos()
+                if hasattr(self, 'tree_consultas_dia'): self.atualizar_lista_consultas_dia()
             except Exception as e:
                 messagebox.showerror("Erro", f"Erro ao salvar: {str(e)}")
         
         ttk.Button(btn_frame, text="Salvar", command=salvar).pack(side='right', padx=5)
         ttk.Button(btn_frame, text="Cancelar", command=janela.destroy).pack(side='right')
-        
-        # Focar no primeiro campo
         paciente_combo.focus()
-    
-    # Métodos para edição
+
+    # --- MÉTODOS DE EDIÇÃO E REMOÇÃO ---
     def editar_profissional(self):
-        """Edita o profissional selecionado"""
+        if not hasattr(self, 'tree_profissionais'): return
         selection = self.tree_profissionais.selection()
         if not selection:
             messagebox.showwarning("Aviso", "Selecione um profissional para editar!")
             return
         
-        item = self.tree_profissionais.item(selection[0])
-        valores = item['values']
-        
-        profissional = Profissional.from_tuple(valores)
+        profissional = Profissional.from_tuple(self.tree_profissionais.item(selection[0])['values'])
         self.abrir_janela_profissional(profissional)
     
     def editar_paciente(self):
-        """Edita o paciente selecionado"""
+        if not hasattr(self, 'tree_pacientes'): return
         selection = self.tree_pacientes.selection()
         if not selection:
             messagebox.showwarning("Aviso", "Selecione um paciente para editar!")
             return
         
-        item = self.tree_pacientes.item(selection[0])
-        valores = item['values']
+        paciente_id = self.tree_pacientes.item(selection[0])['values'][0]
+        paciente_data = self.db.get_paciente_by_id(paciente_id)
         
-        # Remover a coluna de idade que foi adicionada na exibição
-        valores_paciente = valores[:6]
-        paciente = Paciente.from_tuple(valores_paciente)
-        self.abrir_janela_paciente(paciente)
+        if paciente_data:
+            paciente = Paciente.from_tuple(paciente_data)
+            self.abrir_janela_paciente(paciente)
+        else:
+            messagebox.showerror("Erro", "Não foi possível carregar os dados completos do paciente.")
     
     def editar_procedimento(self):
-        """Edita o procedimento selecionado"""
+        if not hasattr(self, 'tree_procedimentos'): return
         selection = self.tree_procedimentos.selection()
         if not selection:
             messagebox.showwarning("Aviso", "Selecione um procedimento para editar!")
             return
         
-        item = self.tree_procedimentos.item(selection[0])
-        valores = item['values']
-        
-        # Converter valor de volta para float
+        valores = self.tree_procedimentos.item(selection[0])['values']
         valores_proc = list(valores)
-        valores_proc[3] = float(valores_proc[3].replace('R$ ', '').replace(',', '.'))
+        try:
+            valores_proc[3] = float(str(valores_proc[3]).replace('R$ ', '').replace(',', '.'))
+        except (ValueError, IndexError):
+            messagebox.showerror("Erro", "Valor do procedimento inválido.")
+            return
         
         procedimento = Procedimento.from_tuple(valores_proc)
         self.abrir_janela_procedimento(procedimento)
     
     def editar_agendamento(self):
-        """Edita o agendamento selecionado"""
-        selection = self.tree_agendamentos.selection()
-        if not selection:
-            messagebox.showwarning("Aviso", "Selecione um agendamento para editar!")
-            return
+        messagebox.showinfo("Informação", "Para editar um agendamento, por favor, remova o antigo e crie um novo com os dados corrigidos.")
         
-        item = self.tree_agendamentos.item(selection[0])
-        valores = item['values']
-        
-        # Por simplicidade, vou abrir a janela de novo agendamento
-        # Em uma implementação completa, você carregaria os dados do agendamento
-        self.abrir_janela_agendamento()
-    
-    # Métodos para remoção
     def remover_profissional(self):
-        """Remove o profissional selecionado"""
+        if not hasattr(self, 'tree_profissionais'): return
         selection = self.tree_profissionais.selection()
         if not selection:
             messagebox.showwarning("Aviso", "Selecione um profissional para remover!")
             return
         
         item = self.tree_profissionais.item(selection[0])
-        profissional_id = item['values'][0]
-        nome = item['values'][1]
+        profissional_id, nome = item['values'][0], item['values'][1]
         
         if messagebox.askyesno("Confirmação", f"Deseja realmente remover o profissional '{nome}'?"):
             try:
@@ -1020,18 +826,17 @@ class ClinicaApp:
                 messagebox.showinfo("Sucesso", "Profissional removido com sucesso!")
                 self.carregar_profissionais()
             except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao remover: {str(e)}")
-    
+                messagebox.showerror("Erro", f"Erro ao remover: {str(e)}.\nVerifique se há agendamentos vinculados.")
+
     def remover_paciente(self):
-        """Remove o paciente selecionado"""
+        if not hasattr(self, 'tree_pacientes'): return
         selection = self.tree_pacientes.selection()
         if not selection:
             messagebox.showwarning("Aviso", "Selecione um paciente para remover!")
             return
         
         item = self.tree_pacientes.item(selection[0])
-        paciente_id = item['values'][0]
-        nome = item['values'][1]
+        paciente_id, nome = item['values'][0], item['values'][1]
         
         if messagebox.askyesno("Confirmação", f"Deseja realmente remover o paciente '{nome}'?"):
             try:
@@ -1039,18 +844,17 @@ class ClinicaApp:
                 messagebox.showinfo("Sucesso", "Paciente removido com sucesso!")
                 self.carregar_pacientes()
             except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao remover: {str(e)}")
-    
+                messagebox.showerror("Erro", f"Erro ao remover: {str(e)}.\nVerifique se há agendamentos vinculados.")
+
     def remover_procedimento(self):
-        """Remove o procedimento selecionado"""
+        if not hasattr(self, 'tree_procedimentos'): return
         selection = self.tree_procedimentos.selection()
         if not selection:
             messagebox.showwarning("Aviso", "Selecione um procedimento para remover!")
             return
         
         item = self.tree_procedimentos.item(selection[0])
-        procedimento_id = item['values'][0]
-        nome = item['values'][1]
+        procedimento_id, nome = item['values'][0], item['values'][1]
         
         if messagebox.askyesno("Confirmação", f"Deseja realmente remover o procedimento '{nome}'?"):
             try:
@@ -1058,166 +862,18 @@ class ClinicaApp:
                 messagebox.showinfo("Sucesso", "Procedimento removido com sucesso!")
                 self.carregar_procedimentos()
             except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao remover: {str(e)}")
-    
-    def remover_agendamento(self):
-        """Remove o agendamento selecionado"""
-        selection = self.tree_agendamentos.selection()
-        if not selection:
-            messagebox.showwarning("Aviso", "Selecione um agendamento para remover!")
-            return
-        
-        item = self.tree_agendamentos.item(selection[0])
-        agendamento_id = item['values'][0]
-        paciente = item['values'][1]
-        data_hora = item['values'][4]
-        
-        if messagebox.askyesno("Confirmação", f"Deseja realmente remover o agendamento de '{paciente}' em '{data_hora}'?"):
-            try:
-                self.db.delete_agendamento(agendamento_id)
-                messagebox.showinfo("Sucesso", "Agendamento removido com sucesso!")
-                self.carregar_agendamentos()
-            except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao remover: {str(e)}")
-    
-    # Métodos para busca e filtros
-    def buscar_pacientes(self, event=None):
-        """Busca pacientes por nome ou CPF"""
-        termo = self.search_var.get().strip()
-        
-        # Limpar dados existentes
-        for item in self.tree_pacientes.get_children():
-            self.tree_pacientes.delete(item)
-        
-        if termo:
-            pacientes = self.db.search_pacientes(termo)
-        else:
-            pacientes = self.db.get_pacientes()
-        
-        for pac in pacientes:
-            # Calcular idade
-            idade = ""
-            if pac[5]:  # data_nascimento
-                try:
-                    nascimento = datetime.strptime(pac[5], "%Y-%m-%d")
-                    hoje = datetime.now()
-                    idade = hoje.year - nascimento.year
-                    if hoje.month < nascimento.month or (hoje.month == nascimento.month and hoje.day < nascimento.day):
-                        idade -= 1
-                except:
-                    idade = ""
-            
-            # Inserir com idade calculada
-            valores = list(pac) + [idade]
-            self.tree_pacientes.insert('', 'end', values=valores)
-    
-    def limpar_busca_pacientes(self):
-        """Limpa a busca de pacientes"""
-        self.search_var.set("")
-        self.carregar_pacientes()
-    
-    def filtrar_agendamentos_data(self):
-        """Filtra agendamentos por data"""
-        data = self.data_filter_var.get().strip()
-        
-        if not data:
-            messagebox.showwarning("Aviso", "Digite uma data para filtrar!")
-            return
-        
-        try:
-            # Validar formato da data
-            datetime.strptime(data, "%Y-%m-%d")
-        except ValueError:
-            messagebox.showerror("Erro", "Data deve estar no formato AAAA-MM-DD!")
-            return
-        
-        # Limpar dados existentes
-        for item in self.tree_agendamentos.get_children():
-            self.tree_agendamentos.delete(item)
-        
-        # Carregar agendamentos da data
-        profissional_id = self.profissional_logado.id if self.apenas_meus_var.get() else None
-        agendamentos = self.db.get_agendamentos_por_data(data, profissional_id)
-        
-        for agend in agendamentos:
-            # Formatar data/hora
-            valores = list(agend)
-            try:
-                dt = datetime.strptime(valores[4], "%Y-%m-%d %H:%M:%S")
-                valores[4] = dt.strftime("%d/%m/%Y %H:%M")
-            except:
-                pass
-            
-            self.tree_agendamentos.insert('', 'end', values=valores)
-    
-    def ver_historico_paciente(self):
-        """Mostra o histórico de procedimentos do paciente selecionado"""
+                messagebox.showerror("Erro", f"Erro ao remover: {str(e)}.\nVerifique se há agendamentos vinculados.")
+
+    def ver_prontuario_paciente_da_lista(self):
+        if not hasattr(self, 'tree_pacientes'): return
         selection = self.tree_pacientes.selection()
         if not selection:
-            messagebox.showwarning("Aviso", "Selecione um paciente para ver o histórico!")
+            messagebox.showwarning("Aviso", "Selecione um paciente para ver o prontuário!")
             return
-        
-        item = self.tree_pacientes.item(selection[0])
-        paciente_id = item['values'][0]
-        nome_paciente = item['values'][1]
-        
-        # Criar janela de histórico
-        janela = tk.Toplevel(self.root)
-        janela.title(f"Histórico de {nome_paciente}")
-        janela.geometry("800x400")
-        janela.transient(self.root)
-        
-        # Frame principal
-        main_frame = ttk.Frame(janela, padding="10")
-        main_frame.pack(fill='both', expand=True)
-        
-        # Título
-        ttk.Label(main_frame, text=f"Histórico de Procedimentos - {nome_paciente}", 
-                 style='Title.TLabel').pack(pady=(0, 10))
-        
-        # Treeview para histórico
-        columns = ('Procedimento', 'Profissional', 'Data/Hora', 'Status', 'Observações')
-        tree_historico = ttk.Treeview(main_frame, columns=columns, show='headings')
-        
-        # Configurar colunas
-        tree_historico.heading('Procedimento', text='Procedimento')
-        tree_historico.heading('Profissional', text='Profissional')
-        tree_historico.heading('Data/Hora', text='Data/Hora')
-        tree_historico.heading('Status', text='Status')
-        tree_historico.heading('Observações', text='Observações')
-        
-        tree_historico.column('Procedimento', width=150)
-        tree_historico.column('Profissional', width=120)
-        tree_historico.column('Data/Hora', width=130)
-        tree_historico.column('Status', width=100)
-        tree_historico.column('Observações', width=200)
-        
-        # Scrollbar
-        scrollbar_hist = ttk.Scrollbar(main_frame, orient='vertical', command=tree_historico.yview)
-        tree_historico.configure(yscrollcommand=scrollbar_hist.set)
-        
-        # Pack treeview e scrollbar
-        tree_historico.pack(side='left', expand=True, fill='both')
-        scrollbar_hist.pack(side='right', fill='y')
-        
-        # Carregar histórico
-        historico = self.db.get_historico_paciente(paciente_id)
-        for item in historico:
-            # Formatar data/hora
-            valores = list(item)
-            try:
-                dt = datetime.strptime(valores[2], "%Y-%m-%d %H:%M:%S")
-                valores[2] = dt.strftime("%d/%m/%Y %H:%M")
-            except:
-                pass
-            
-            tree_historico.insert('', 'end', values=valores)
-        
-        # Botão fechar
-        ttk.Button(main_frame, text="Fechar", command=janela.destroy).pack(pady=10)
+        paciente_id = self.tree_pacientes.item(selection[0])['values'][0]
+        self.abrir_prontuario_paciente(paciente_id)
 
 def main():
-    """Função principal para executar o aplicativo"""
     root = tk.Tk()
     app = ClinicaApp(root)
     root.mainloop()

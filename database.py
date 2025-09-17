@@ -29,15 +29,29 @@ class DatabaseManager:
                 )
             ''')
             
-            # Tabela pacientes
+            # Tabela pacientes - MODIFICADA COM OS NOVOS CAMPOS
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS pacientes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     nome TEXT NOT NULL,
-                    telefone TEXT,
+                    data_nascimento DATE,
                     cpf TEXT UNIQUE,
-                    endereco TEXT,
-                    data_nascimento DATE
+                    estado_civil TEXT,
+                    profissao TEXT,
+                    telefone TEXT,
+                    email TEXT,
+                    rua TEXT,
+                    numero TEXT,
+                    bairro TEXT,
+                    cidade TEXT,
+                    estado TEXT,
+                    cep TEXT,
+                    queixa_principal TEXT,
+                    historico_doenca_atual TEXT,
+                    antecedentes_pessoais TEXT,
+                    antecedentes_familiares TEXT,
+                    habitos_vida TEXT,
+                    medicamentos_em_uso TEXT
                 )
             ''')
             
@@ -99,8 +113,8 @@ class DatabaseManager:
         finally:
             conn.close()
     
+    # --- MÉTODOS DE PROFISSIONAIS (sem alteração) ---
     def insert_profissional(self, nome, especialidade, crm_registro, telefone, email):
-        """Insere um novo profissional"""
         query = '''
             INSERT INTO profissionais (nome, especialidade, crm_registro, telefone, email)
             VALUES (?, ?, ?, ?, ?)
@@ -108,12 +122,10 @@ class DatabaseManager:
         return self.execute_query(query, (nome, especialidade, crm_registro, telefone, email))
     
     def get_profissionais(self):
-        """Retorna todos os profissionais"""
         query = "SELECT * FROM profissionais ORDER BY nome"
         return self.execute_query(query)
     
     def update_profissional(self, id, nome, especialidade, crm_registro, telefone, email):
-        """Atualiza um profissional"""
         query = '''
             UPDATE profissionais 
             SET nome=?, especialidade=?, crm_registro=?, telefone=?, email=?
@@ -122,45 +134,64 @@ class DatabaseManager:
         return self.execute_query(query, (nome, especialidade, crm_registro, telefone, email, id))
     
     def delete_profissional(self, id):
-        """Remove um profissional"""
         query = "DELETE FROM profissionais WHERE id=?"
         return self.execute_query(query, (id,))
     
-    def insert_paciente(self, nome, telefone, cpf, endereco, data_nascimento):
-        """Insere um novo paciente"""
+    # --- MÉTODOS DE PACIENTES (MODIFICADOS) ---
+    def insert_paciente(self, nome, data_nascimento, cpf, estado_civil, profissao, telefone, email,
+                        rua, numero, bairro, cidade, estado, cep, queixa, historico, ant_pessoais,
+                        ant_familiares, habitos, medicamentos):
         query = '''
-            INSERT INTO pacientes (nome, telefone, cpf, endereco, data_nascimento)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO pacientes (nome, data_nascimento, cpf, estado_civil, profissao, telefone, email,
+                                   rua, numero, bairro, cidade, estado, cep, queixa_principal,
+                                   historico_doenca_atual, antecedentes_pessoais, antecedentes_familiares,
+                                   habitos_vida, medicamentos_em_uso)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         '''
-        return self.execute_query(query, (nome, telefone, cpf, endereco, data_nascimento))
+        params = (nome, data_nascimento, cpf, estado_civil, profissao, telefone, email, rua, numero,
+                  bairro, cidade, estado, cep, queixa, historico, ant_pessoais, ant_familiares,
+                  habitos, medicamentos)
+        return self.execute_query(query, params)
     
     def get_pacientes(self):
-        """Retorna todos os pacientes"""
-        query = "SELECT * FROM pacientes ORDER BY nome"
+        """Retorna pacientes com colunas para a lista principal."""
+        query = "SELECT id, nome, telefone, cpf, data_nascimento, cidade FROM pacientes ORDER BY nome"
         return self.execute_query(query)
+
+    def get_paciente_by_id(self, paciente_id):
+        """Retorna todos os dados de um paciente específico."""
+        query = "SELECT * FROM pacientes WHERE id = ?"
+        result = self.execute_query(query, (paciente_id,))
+        return result[0] if result else None
     
     def search_pacientes(self, termo):
-        """Busca pacientes por nome ou CPF"""
-        query = "SELECT * FROM pacientes WHERE nome LIKE ? OR cpf LIKE ? ORDER BY nome"
+        """Busca pacientes por nome ou CPF."""
+        query = "SELECT id, nome, telefone, cpf, data_nascimento, cidade FROM pacientes WHERE nome LIKE ? OR cpf LIKE ? ORDER BY nome"
         termo = f"%{termo}%"
         return self.execute_query(query, (termo, termo))
     
-    def update_paciente(self, id, nome, telefone, cpf, endereco, data_nascimento):
-        """Atualiza um paciente"""
+    def update_paciente(self, id, nome, data_nascimento, cpf, estado_civil, profissao, telefone, email,
+                        rua, numero, bairro, cidade, estado, cep, queixa, historico, ant_pessoais,
+                        ant_familiares, habitos, medicamentos):
         query = '''
             UPDATE pacientes 
-            SET nome=?, telefone=?, cpf=?, endereco=?, data_nascimento=?
+            SET nome=?, data_nascimento=?, cpf=?, estado_civil=?, profissao=?, telefone=?, email=?,
+                rua=?, numero=?, bairro=?, cidade=?, estado=?, cep=?, queixa_principal=?,
+                historico_doenca_atual=?, antecedentes_pessoais=?, antecedentes_familiares=?,
+                habitos_vida=?, medicamentos_em_uso=?
             WHERE id=?
         '''
-        return self.execute_query(query, (nome, telefone, cpf, endereco, data_nascimento, id))
+        params = (nome, data_nascimento, cpf, estado_civil, profissao, telefone, email, rua, numero,
+                  bairro, cidade, estado, cep, queixa, historico, ant_pessoais, ant_familiares,
+                  habitos, medicamentos, id)
+        return self.execute_query(query, params)
     
     def delete_paciente(self, id):
-        """Remove um paciente"""
         query = "DELETE FROM pacientes WHERE id=?"
         return self.execute_query(query, (id,))
     
+    # --- MÉTODOS DE PROCEDIMENTOS (sem alteração) ---
     def insert_procedimento(self, nome, duracao, valor):
-        """Insere um novo procedimento"""
         query = '''
             INSERT INTO procedimentos (nome, duracao, valor)
             VALUES (?, ?, ?)
@@ -168,12 +199,10 @@ class DatabaseManager:
         return self.execute_query(query, (nome, duracao, valor))
     
     def get_procedimentos(self):
-        """Retorna todos os procedimentos"""
         query = "SELECT * FROM procedimentos ORDER BY nome"
         return self.execute_query(query)
     
     def update_procedimento(self, id, nome, duracao, valor):
-        """Atualiza um procedimento"""
         query = '''
             UPDATE procedimentos 
             SET nome=?, duracao=?, valor=?
@@ -182,12 +211,11 @@ class DatabaseManager:
         return self.execute_query(query, (nome, duracao, valor, id))
     
     def delete_procedimento(self, id):
-        """Remove um procedimento"""
         query = "DELETE FROM procedimentos WHERE id=?"
         return self.execute_query(query, (id,))
     
+    # --- MÉTODOS DE AGENDAMENTOS (sem alteração) ---
     def insert_agendamento(self, paciente_id, procedimento_id, profissional_id, data_hora, status, observacoes):
-        """Insere um novo agendamento"""
         query = '''
             INSERT INTO agendamentos (paciente_id, procedimento_id, profissional_id, data_hora, status, observacoes)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -195,11 +223,11 @@ class DatabaseManager:
         return self.execute_query(query, (paciente_id, procedimento_id, profissional_id, data_hora, status, observacoes))
     
     def get_agendamentos(self, profissional_id=None):
-        """Retorna agendamentos, opcionalmente filtrados por profissional"""
         if profissional_id:
             query = '''
                 SELECT a.id, p.nome as paciente, pr.nome as procedimento, 
-                       prof.nome as profissional, a.data_hora, a.status, a.observacoes
+                       prof.nome as profissional, a.data_hora, a.status, a.observacoes,
+                       p.id as paciente_id
                 FROM agendamentos a
                 JOIN pacientes p ON a.paciente_id = p.id
                 JOIN procedimentos pr ON a.procedimento_id = pr.id
@@ -211,7 +239,8 @@ class DatabaseManager:
         else:
             query = '''
                 SELECT a.id, p.nome as paciente, pr.nome as procedimento, 
-                       prof.nome as profissional, a.data_hora, a.status, a.observacoes
+                       prof.nome as profissional, a.data_hora, a.status, a.observacoes,
+                       p.id as paciente_id
                 FROM agendamentos a
                 JOIN pacientes p ON a.paciente_id = p.id
                 JOIN procedimentos pr ON a.procedimento_id = pr.id
@@ -221,11 +250,11 @@ class DatabaseManager:
             return self.execute_query(query)
     
     def get_agendamentos_por_data(self, data, profissional_id=None):
-        """Retorna agendamentos de uma data específica"""
         if profissional_id:
             query = '''
                 SELECT a.id, p.nome as paciente, pr.nome as procedimento, 
-                       prof.nome as profissional, a.data_hora, a.status, a.observacoes
+                       prof.nome as profissional, a.data_hora, a.status, a.observacoes,
+                       p.id as paciente_id
                 FROM agendamentos a
                 JOIN pacientes p ON a.paciente_id = p.id
                 JOIN procedimentos pr ON a.procedimento_id = pr.id
@@ -237,7 +266,8 @@ class DatabaseManager:
         else:
             query = '''
                 SELECT a.id, p.nome as paciente, pr.nome as procedimento, 
-                       prof.nome as profissional, a.data_hora, a.status, a.observacoes
+                       prof.nome as profissional, a.data_hora, a.status, a.observacoes,
+                       p.id as paciente_id
                 FROM agendamentos a
                 JOIN pacientes p ON a.paciente_id = p.id
                 JOIN procedimentos pr ON a.procedimento_id = pr.id
@@ -248,7 +278,6 @@ class DatabaseManager:
             return self.execute_query(query, (data,))
     
     def update_agendamento(self, id, paciente_id, procedimento_id, profissional_id, data_hora, status, observacoes):
-        """Atualiza um agendamento"""
         query = '''
             UPDATE agendamentos 
             SET paciente_id=?, procedimento_id=?, profissional_id=?, data_hora=?, status=?, observacoes=?
@@ -257,12 +286,10 @@ class DatabaseManager:
         return self.execute_query(query, (paciente_id, procedimento_id, profissional_id, data_hora, status, observacoes, id))
     
     def delete_agendamento(self, id):
-        """Remove um agendamento"""
         query = "DELETE FROM agendamentos WHERE id=?"
         return self.execute_query(query, (id,))
     
     def get_historico_paciente(self, paciente_id):
-        """Retorna o histórico de procedimentos de um paciente"""
         query = '''
             SELECT pr.nome as procedimento, prof.nome as profissional, 
                    a.data_hora, a.status, a.observacoes
