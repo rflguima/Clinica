@@ -17,7 +17,7 @@ class DatabaseManager:
         cursor = conn.cursor()
         
         try:
-            # Tabela profissionais
+            # Tabela profissionais - MODIFICADA COM CÓDIGO DE ACESSO
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS profissionais (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,11 +25,25 @@ class DatabaseManager:
                     especialidade TEXT NOT NULL,
                     crm_registro TEXT UNIQUE NOT NULL,
                     telefone TEXT,
-                    email TEXT
+                    email TEXT,
+                    codigo_acesso TEXT NOT NULL
                 )
             ''')
             
-            # Tabela pacientes - MODIFICADA COM OS NOVOS CAMPOS
+            # Verificar se a coluna codigo_acesso já existe, se não, adicionar
+            cursor.execute("PRAGMA table_info(profissionais)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if 'codigo_acesso' not in columns:
+                cursor.execute('ALTER TABLE profissionais ADD COLUMN codigo_acesso TEXT DEFAULT ""')
+                # Gerar códigos para profissionais existentes
+                from services.auth_service import AuthService
+                cursor.execute("SELECT id FROM profissionais WHERE codigo_acesso = '' OR codigo_acesso IS NULL")
+                profissionais_sem_codigo = cursor.fetchall()
+                for prof in profissionais_sem_codigo:
+                    codigo = AuthService.gerar_codigo_acesso()
+                    cursor.execute("UPDATE profissionais SET codigo_acesso = ? WHERE id = ?", (codigo, prof[0]))
+            
+            # Tabela pacientes
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS pacientes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,19 +127,33 @@ class DatabaseManager:
         finally:
             conn.close()
     
-    # --- MÉTODOS DE PROFISSIONAIS (sem alteração) ---
-    def insert_profissional(self, nome, especialidade, crm_registro, telefone, email):
+    # --- MÉTODOS DE PROFISSIONAIS (MODIFICADOS) ---
+    def insert_profissional(self, nome, especialidade, crm_registro, telefone, email, codigo_acesso):
         query = '''
-            INSERT INTO profissionais (nome, especialidade, crm_registro, telefone, email)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO profissionais (nome, especialidade, crm_registro, telefone, email, codigo_acesso)
+            VALUES (?, ?, ?, ?, ?, ?)
         '''
-        return self.execute_query(query, (nome, especialidade, crm_registro, telefone, email))
+        return self.execute_query(query, (nome, especialidade, crm_registro, telefone, email, codigo_acesso))
     
     def get_profissionais(self):
         query = "SELECT * FROM profissionais ORDER BY nome"
         return self.execute_query(query)
     
+    def get_profissional_by_id(self, profissional_id):
+        query = "SELECT * FROM profissionais WHERE id = ?"
+        result = self.execute_query(query, (profissional_id,))
+        return result[0] if result else None
+    
+    def verificar_codigo_acesso(self, profissional_id, codigo):
+        """Verifica se o código de acesso está correto para o profissional"""
+        query = "SELECT codigo_acesso FROM profissionais WHERE id = ?"
+        result = self.execute_query(query, (profissional_id,))
+        if result:
+            return result[0][0] == codigo
+        return False
+    
     def update_profissional(self, id, nome, especialidade, crm_registro, telefone, email):
+        # Não atualizamos o código de acesso na edição normal
         query = '''
             UPDATE profissionais 
             SET nome=?, especialidade=?, crm_registro=?, telefone=?, email=?
@@ -137,7 +165,7 @@ class DatabaseManager:
         query = "DELETE FROM profissionais WHERE id=?"
         return self.execute_query(query, (id,))
     
-    # --- MÉTODOS DE PACIENTES (MODIFICADOS) ---
+    # --- MÉTODOS DE PACIENTES ---
     def insert_paciente(self, nome, data_nascimento, cpf, estado_civil, profissao, telefone, email,
                         rua, numero, bairro, cidade, estado, cep, queixa, historico, ant_pessoais,
                         ant_familiares, habitos, medicamentos):
@@ -190,7 +218,7 @@ class DatabaseManager:
         query = "DELETE FROM pacientes WHERE id=?"
         return self.execute_query(query, (id,))
     
-    # --- MÉTODOS DE PROCEDIMENTOS (sem alteração) ---
+    # --- MÉTODOS DE PROCEDIMENTOS ---
     def insert_procedimento(self, nome, duracao, valor):
         query = '''
             INSERT INTO procedimentos (nome, duracao, valor)
@@ -214,7 +242,7 @@ class DatabaseManager:
         query = "DELETE FROM procedimentos WHERE id=?"
         return self.execute_query(query, (id,))
     
-    # --- MÉTODOS DE AGENDAMENTOS (sem alteração) ---
+    # --- MÉTODOS DE AGENDAMENTOS ---
     def insert_agendamento(self, paciente_id, procedimento_id, profissional_id, data_hora, status, observacoes):
         query = '''
             INSERT INTO agendamentos (paciente_id, procedimento_id, profissional_id, data_hora, status, observacoes)
