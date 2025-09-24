@@ -1,127 +1,88 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
+import customtkinter as ctk
+from tkinter import messagebox
 from models import Profissional
 from services import AuthService
 
-class ProfissionalDialog:
+class ProfissionalDialog(ctk.CTkToplevel):
     def __init__(self, parent, db, profissional=None):
+        super().__init__(parent)
         self.db = db
         self.profissional = profissional
         self.result = None
+
+        self.title("Cadastro de Profissional" if not profissional else "Editar Profissional")
+        self.geometry("500x520")
+        self.resizable(False, False)
         
-        self.janela = tk.Toplevel(parent)
-        self.janela.title("Cadastro de Profissional" if not profissional else "Editar Profissional")
-        self.janela.geometry("500x450")
-        self.janela.resizable(False, False)
-        self.janela.transient(parent)
-        self.janela.grab_set()
-        
-        self.centralizar_janela()
+        # Faz com que a janela de diálogo fique na frente e bloqueie a janela principal
+        self.transient(parent)
+        self.grab_set()
+
         self.criar_interface()
+
+        if self.profissional:
+            self.carregar_dados()
         
-        # Focar no primeiro campo
         self.nome_entry.focus()
         
-        # Aguardar fechamento da janela
-        self.janela.wait_window()
-    
-    def centralizar_janela(self):
-        self.janela.update_idletasks()
-        x = (self.janela.winfo_screenwidth() // 2) - (self.janela.winfo_width() // 2)
-        y = (self.janela.winfo_screenheight() // 2) - (self.janela.winfo_height() // 2)
-        self.janela.geometry(f"+{x}+{y}")
-    
+    def carregar_dados(self):
+        self.nome_var.set(self.profissional.nome)
+        self.especialidade_var.set(self.profissional.especialidade)
+        self.crm_var.set(self.profissional.crm_registro)
+        self.telefone_var.set(self.profissional.telefone)
+        self.email_var.set(self.profissional.email)
+        # O código de acesso não é exibido na edição
+        self.codigo_frame.pack_forget()
+
     def criar_interface(self):
-        main_frame = ttk.Frame(self.janela, padding="20")
-        main_frame.pack(fill='both', expand=True)
-        
-        titulo = ttk.Label(main_frame, text="Cadastro de Profissional" if not self.profissional else "Editar Profissional", style='Title.TLabel')
-        titulo.pack(pady=(0, 20))
-        
-        # Campos do formulário
-        ttk.Label(main_frame, text="Nome:").pack(anchor='w')
-        self.nome_var = tk.StringVar(value=self.profissional.nome if self.profissional else "")
-        self.nome_entry = ttk.Entry(main_frame, textvariable=self.nome_var, width=50)
-        self.nome_entry.pack(pady=(0, 10), fill='x')
-        
-        ttk.Label(main_frame, text="Especialidade:").pack(anchor='w')
-        self.especialidade_var = tk.StringVar(value=self.profissional.especialidade if self.profissional else "")
-        especialidade_entry = ttk.Entry(main_frame, textvariable=self.especialidade_var, width=50)
-        especialidade_entry.pack(pady=(0, 10), fill='x')
-        
-        ttk.Label(main_frame, text="CRM/Registro:").pack(anchor='w')
-        self.crm_var = tk.StringVar(value=self.profissional.crm_registro if self.profissional else "")
-        crm_entry = ttk.Entry(main_frame, textvariable=self.crm_var, width=50)
-        crm_entry.pack(pady=(0, 10), fill='x')
-        
-        ttk.Label(main_frame, text="Telefone:").pack(anchor='w')
-        self.telefone_var = tk.StringVar(value=self.profissional.telefone if self.profissional else "")
-        telefone_entry = ttk.Entry(main_frame, textvariable=self.telefone_var, width=50)
-        telefone_entry.pack(pady=(0, 10), fill='x')
-        
-        ttk.Label(main_frame, text="Email:").pack(anchor='w')
-        self.email_var = tk.StringVar(value=self.profissional.email if self.profissional else "")
-        email_entry = ttk.Entry(main_frame, textvariable=self.email_var, width=50)
-        email_entry.pack(pady=(0, 10), fill='x')
-        
-        # Mostrar código de acesso apenas para novos profissionais
-        if not self.profissional:
-            self.codigo_gerado = AuthService.gerar_codigo_acesso()
-            
-            codigo_frame = ttk.LabelFrame(main_frame, text="Código de Acesso Gerado", padding="10")
-            codigo_frame.pack(fill='x', pady=(10, 0))
-            
-            ttk.Label(codigo_frame, text="IMPORTANTE: Anote este código, ele será necessário para fazer login:", 
-                     font=('Arial', 10, 'bold'), foreground='red').pack(anchor='w')
-            
-            codigo_label = ttk.Label(codigo_frame, text=self.codigo_gerado, 
-                                   font=('Arial', 16, 'bold'), foreground='blue')
-            codigo_label.pack(pady=5)
-            
-            ttk.Label(codigo_frame, text="Este código não será exibido novamente após o cadastro.", 
-                     font=('Arial', 9), foreground='gray').pack(anchor='w')
-        
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        ctk.CTkLabel(main_frame, text="Nome:").pack(anchor='w')
+        self.nome_var = ctk.StringVar()
+        self.nome_entry = ctk.CTkEntry(main_frame, textvariable=self.nome_var)
+        self.nome_entry.pack(fill='x', pady=(0, 10))
+
+        ctk.CTkLabel(main_frame, text="Especialidade:").pack(anchor='w')
+        self.especialidade_var = ctk.StringVar()
+        ctk.CTkEntry(main_frame, textvariable=self.especialidade_var).pack(fill='x', pady=(0, 10))
+
+        ctk.CTkLabel(main_frame, text="CRM/Registro:").pack(anchor='w')
+        self.crm_var = ctk.StringVar()
+        ctk.CTkEntry(main_frame, textvariable=self.crm_var).pack(fill='x', pady=(0, 10))
+
+        ctk.CTkLabel(main_frame, text="Telefone:").pack(anchor='w')
+        self.telefone_var = ctk.StringVar()
+        ctk.CTkEntry(main_frame, textvariable=self.telefone_var).pack(fill='x', pady=(0, 10))
+
+        ctk.CTkLabel(main_frame, text="Email:").pack(anchor='w')
+        self.email_var = ctk.StringVar()
+        ctk.CTkEntry(main_frame, textvariable=self.email_var).pack(fill='x', pady=(0, 10))
+
+        # Código de Acesso (visível apenas para novos)
+        self.codigo_gerado = AuthService.gerar_codigo_acesso()
+        self.codigo_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        self.codigo_frame.pack(fill='x', pady=(10, 0))
+        ctk.CTkLabel(self.codigo_frame, text="Código de Acesso Gerado:", font=ctk.CTkFont(weight="bold")).pack()
+        ctk.CTkLabel(self.codigo_frame, text=self.codigo_gerado, font=ctk.CTkFont(size=20, weight="bold"), text_color="#347083").pack()
+
         # Botões
-        btn_frame = ttk.Frame(main_frame)
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         btn_frame.pack(fill='x', pady=(20, 0))
-        
-        ttk.Button(btn_frame, text="Salvar", command=self.salvar).pack(side='right', padx=5)
-        ttk.Button(btn_frame, text="Cancelar", command=self.janela.destroy).pack(side='right')
-    
+        ctk.CTkButton(btn_frame, text="Salvar", command=self.salvar).pack(side='right')
+        ctk.CTkButton(btn_frame, text="Cancelar", command=self.destroy, fg_color="gray").pack(side='right', padx=10)
+
     def salvar(self):
-        if not self.nome_var.get().strip() or not self.especialidade_var.get().strip() or not self.crm_var.get().strip():
-            messagebox.showerror("Erro", "Nome, Especialidade e CRM/Registro são obrigatórios!")
+        if not self.nome_var.get() or not self.especialidade_var.get() or not self.crm_var.get():
+            messagebox.showerror("Erro", "Nome, Especialidade e CRM são obrigatórios.", parent=self)
             return
-        
         try:
             if self.profissional:
-                # Edição - não alteramos o código de acesso
-                self.db.update_profissional(
-                    self.profissional.id, 
-                    self.nome_var.get().strip(), 
-                    self.especialidade_var.get().strip(), 
-                    self.crm_var.get().strip(), 
-                    self.telefone_var.get().strip(), 
-                    self.email_var.get().strip()
-                )
-                messagebox.showinfo("Sucesso", "Profissional atualizado com sucesso!")
+                self.db.update_profissional(self.profissional.id, self.nome_var.get(), self.especialidade_var.get(), self.crm_var.get(), self.telefone_var.get(), self.email_var.get())
             else:
-                # Novo cadastro - incluir código de acesso
-                self.db.insert_profissional(
-                    self.nome_var.get().strip(), 
-                    self.especialidade_var.get().strip(), 
-                    self.crm_var.get().strip(), 
-                    self.telefone_var.get().strip(), 
-                    self.email_var.get().strip(),
-                    self.codigo_gerado
-                )
-                messagebox.showinfo("Sucesso", f"Profissional cadastrado com sucesso!\n\nCódigo de acesso: {self.codigo_gerado}\n\nAnote este código, ele será necessário para fazer login!")
+                self.db.insert_profissional(self.nome_var.get(), self.especialidade_var.get(), self.crm_var.get(), self.telefone_var.get(), self.email_var.get(), self.codigo_gerado)
             
             self.result = True
-            self.janela.destroy()
-            
+            self.destroy()
         except Exception as e:
-            if "UNIQUE constraint failed" in str(e):
-                messagebox.showerror("Erro", "Este CRM/Registro já está cadastrado!")
-            else:
-                messagebox.showerror("Erro", f"Erro ao salvar: {str(e)}")
+            messagebox.showerror("Erro de Banco de Dados", f"Não foi possível salvar:\n{e}", parent=self)

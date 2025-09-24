@@ -17,7 +17,7 @@ class DatabaseManager:
         cursor = conn.cursor()
         
         try:
-            # Tabela profissionais - MODIFICADA COM CÓDIGO DE ACESSO
+            # Tabela profissionais - MODIFICADA COM ROLE
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS profissionais (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,22 +26,15 @@ class DatabaseManager:
                     crm_registro TEXT UNIQUE NOT NULL,
                     telefone TEXT,
                     email TEXT,
-                    codigo_acesso TEXT NOT NULL
+                    codigo_acesso TEXT NOT NULL,
+                    role TEXT DEFAULT 'profissional' NOT NULL
                 )
             ''')
-            
-            # Verificar se a coluna codigo_acesso já existe, se não, adicionar
+
             cursor.execute("PRAGMA table_info(profissionais)")
             columns = [column[1] for column in cursor.fetchall()]
-            if 'codigo_acesso' not in columns:
-                cursor.execute('ALTER TABLE profissionais ADD COLUMN codigo_acesso TEXT DEFAULT ""')
-                # Gerar códigos para profissionais existentes
-                from services.auth_service import AuthService
-                cursor.execute("SELECT id FROM profissionais WHERE codigo_acesso = '' OR codigo_acesso IS NULL")
-                profissionais_sem_codigo = cursor.fetchall()
-                for prof in profissionais_sem_codigo:
-                    codigo = AuthService.gerar_codigo_acesso()
-                    cursor.execute("UPDATE profissionais SET codigo_acesso = ? WHERE id = ?", (codigo, prof[0]))
+            if 'role' not in columns:
+                cursor.execute("ALTER TABLE profissionais ADD COLUMN role TEXT DEFAULT 'profissional' NOT NULL")
             
             # Tabela pacientes
             cursor.execute('''
@@ -127,7 +120,7 @@ class DatabaseManager:
         finally:
             conn.close()
     
-    # --- MÉTODOS DE PROFISSIONAIS (MODIFICADOS) ---
+    # --- MÉTODOS DE PROFISSIONAIS ---
     def insert_profissional(self, nome, especialidade, crm_registro, telefone, email, codigo_acesso):
         query = '''
             INSERT INTO profissionais (nome, especialidade, crm_registro, telefone, email, codigo_acesso)
@@ -145,7 +138,6 @@ class DatabaseManager:
         return result[0] if result else None
     
     def verificar_codigo_acesso(self, profissional_id, codigo):
-        """Verifica se o código de acesso está correto para o profissional"""
         query = "SELECT codigo_acesso FROM profissionais WHERE id = ?"
         result = self.execute_query(query, (profissional_id,))
         if result:
@@ -153,7 +145,6 @@ class DatabaseManager:
         return False
     
     def update_profissional(self, id, nome, especialidade, crm_registro, telefone, email):
-        # Não atualizamos o código de acesso na edição normal
         query = '''
             UPDATE profissionais 
             SET nome=?, especialidade=?, crm_registro=?, telefone=?, email=?
@@ -182,18 +173,19 @@ class DatabaseManager:
         return self.execute_query(query, params)
     
     def get_pacientes(self):
-        """Retorna pacientes com colunas para a lista principal."""
         query = "SELECT id, nome, telefone, cpf, data_nascimento, cidade FROM pacientes ORDER BY nome"
         return self.execute_query(query)
 
+    def get_pacientes_recentes(self, limit=5):
+        query = "SELECT nome FROM pacientes ORDER BY id DESC LIMIT ?"
+        return self.execute_query(query, (limit,))
+
     def get_paciente_by_id(self, paciente_id):
-        """Retorna todos os dados de um paciente específico."""
         query = "SELECT * FROM pacientes WHERE id = ?"
         result = self.execute_query(query, (paciente_id,))
         return result[0] if result else None
     
     def search_pacientes(self, termo):
-        """Busca pacientes por nome ou CPF."""
         query = "SELECT id, nome, telefone, cpf, data_nascimento, cidade FROM pacientes WHERE nome LIKE ? OR cpf LIKE ? ORDER BY nome"
         termo = f"%{termo}%"
         return self.execute_query(query, (termo, termo))
@@ -250,21 +242,8 @@ class DatabaseManager:
         '''
         return self.execute_query(query, (paciente_id, procedimento_id, profissional_id, data_hora, status, observacoes))
     
-    def get_agendamentos(self, profissional_id=None):
-        if profissional_id:
-            query = '''
-                SELECT a.id, p.nome as paciente, pr.nome as procedimento, 
-                       prof.nome as profissional, a.data_hora, a.status, a.observacoes,
-                       p.id as paciente_id
-                FROM agendamentos a
-                JOIN pacientes p ON a.paciente_id = p.id
-                JOIN procedimentos pr ON a.procedimento_id = pr.id
-                JOIN profissionais prof ON a.profissional_id = prof.id
-                WHERE a.profissional_id = ?
-                ORDER BY a.data_hora
-            '''
-            return self.execute_query(query, (profissional_id,))
-        else:
+    def get_agendamentos(self, profissional_logado):
+        if profissional_logado.role == 'secretaria':
             query = '''
                 SELECT a.id, p.nome as paciente, pr.nome as procedimento, 
                        prof.nome as profissional, a.data_hora, a.status, a.observacoes,
@@ -276,21 +255,6 @@ class DatabaseManager:
                 ORDER BY a.data_hora
             '''
             return self.execute_query(query)
-    
-    def get_agendamentos_por_data(self, data, profissional_id=None):
-        if profissional_id:
-            query = '''
-                SELECT a.id, p.nome as paciente, pr.nome as procedimento, 
-                       prof.nome as profissional, a.data_hora, a.status, a.observacoes,
-                       p.id as paciente_id
-                FROM agendamentos a
-                JOIN pacientes p ON a.paciente_id = p.id
-                JOIN procedimentos pr ON a.procedimento_id = pr.id
-                JOIN profissionais prof ON a.profissional_id = prof.id
-                WHERE DATE(a.data_hora) = ? AND a.profissional_id = ?
-                ORDER BY a.data_hora
-            '''
-            return self.execute_query(query, (data, profissional_id))
         else:
             query = '''
                 SELECT a.id, p.nome as paciente, pr.nome as procedimento, 
@@ -300,11 +264,44 @@ class DatabaseManager:
                 JOIN pacientes p ON a.paciente_id = p.id
                 JOIN procedimentos pr ON a.procedimento_id = pr.id
                 JOIN profissionais prof ON a.profissional_id = prof.id
-                WHERE DATE(a.data_hora) = ?
+                WHERE a.profissional_id = ?
                 ORDER BY a.data_hora
             '''
+            return self.execute_query(query, (profissional_logado.id,))
+
+    def get_agendamentos_detalhados_por_data(self, data, profissional_logado):
+        """
+        Retorna detalhes dos agendamentos para a agenda visual,
+        incluindo a duração e o nome do profissional.
+        """
+        query_base = """
+            SELECT
+                a.id,
+                p.nome as paciente_nome,
+                pr.nome as procedimento_nome,
+                a.data_hora,
+                pr.duracao,
+                a.status,
+                p.id as paciente_id,
+                prof.nome as profissional_nome 
+            FROM agendamentos a
+            JOIN pacientes p ON a.paciente_id = p.id
+            JOIN procedimentos pr ON a.procedimento_id = pr.id
+            JOIN profissionais prof ON a.profissional_id = prof.id
+        """
+        if profissional_logado.role == 'secretaria':
+            query = query_base + " WHERE DATE(a.data_hora) = ? ORDER BY a.data_hora"
             return self.execute_query(query, (data,))
+        else:
+            query = query_base + " WHERE DATE(a.data_hora) = ? AND a.profissional_id = ? ORDER BY a.data_hora"
+            return self.execute_query(query, (data, profissional_logado.id))
     
+    def get_agendamentos_em_espera(self, data, profissional_id):
+        """Conta os agendamentos para uma data específica que ainda estão com status 'agendado'."""
+        query = "SELECT COUNT(*) FROM agendamentos WHERE DATE(data_hora) = ? AND profissional_id = ? AND status = 'agendado'"
+        result = self.execute_query(query, (data, profissional_id))
+        return result[0][0] if result else 0
+
     def update_agendamento(self, id, paciente_id, procedimento_id, profissional_id, data_hora, status, observacoes):
         query = '''
             UPDATE agendamentos 
@@ -328,3 +325,13 @@ class DatabaseManager:
             ORDER BY a.data_hora DESC
         '''
         return self.execute_query(query, (paciente_id,))
+    
+    def update_agendamento_status(self, agendamento_id, novo_status):
+        """Atualiza apenas o status de um agendamento específico."""
+        query = "UPDATE agendamentos SET status = ? WHERE id = ?"
+        return self.execute_query(query, (novo_status, agendamento_id))
+
+    def update_agendamento_horario(self, agendamento_id, nova_data_hora):
+        """Atualiza apenas a data e a hora de um agendamento específico."""
+        query = "UPDATE agendamentos SET data_hora = ? WHERE id = ?"
+        return self.execute_query(query, (nova_data_hora, agendamento_id))

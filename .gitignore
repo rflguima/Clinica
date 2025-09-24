@@ -1,0 +1,8 @@
+# Ignorar as pastas de cache do Python
+**/__pycache__/
+
+# Ignorar ficheiros de banco de dados do SQLite
+*.db
+
+# Ignorar o script de popular o banco de dados
+popular_db.py

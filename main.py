@@ -1,8 +1,9 @@
-import tkinter as tk
+import customtkinter as ctk
 from gui.main_window import ClinicaApp
 
 def main():
-    root = tk.Tk()
+    # Apenas garantindo que a janela principal seja criada com ctk
+    root = ctk.CTk() 
     app = ClinicaApp(root)
     root.mainloop()
 
