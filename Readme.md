@@ -1,54 +1,107 @@
-Project Summary
-The project is a clinic management system developed in Python using Tkinter. It provides a user-friendly interface for managing professionals, patients, procedures, and appointments, ensuring efficient scheduling and patient care. The system features a secure login mechanism for professionals, utilizing a randomly generated access code for authentication.
+# Nexa Clinical Software - Sistema de Gestão de Clínica
 
-Project Module Description
-Main Application: Initializes the application and manages the main interface.
-GUI: Contains various graphical components for user interaction, including login screens and main interface tabs.
-Models: Defines data structures for professionals, patients, procedures, and appointments.
-Database: Manages database connections and operations, including initialization and data manipulation.
-Services: Contains business logic, including authentication services and code generation.
-Utilities: Provides helper functions and common utilities for the application.
-Directory Tree
+## 📌 Resumo do Projeto
+O **Nexa Clinical** é um sistema de gestão de clínicas desenvolvido em **Python**, com uma arquitetura **cliente-servidor robusta**.  
+Ele oferece uma **interface gráfica moderna** para a gestão completa de **pacientes, profissionais, procedimentos e agendamentos**, além de contar com um **sistema de permissões** que diferencia o acesso entre profissionais e secretariado.
+
+O sistema foi projetado para ser **multi-clínica**, permitindo que diferentes unidades operem em seus próprios bancos de dados isolados, todos geridos por um **servidor central**.
+
+---
+
+## 🏗 Arquitetura do Sistema
+
+### 🔹 Servidor (Notebook Ubuntu)
+- **Base de Dados PostgreSQL**  
+  - Armazena todos os dados de forma segura.  
+  - Inclui um banco de dados de gestão (`gerenciador_db`) para controlar o acesso das clínicas.  
+  - Cada unidade possui seu próprio banco de dados operacional (ex: `clinica_db`).  
+
+- **API Flask (`api_clinica.py`)**  
+  - Intermediário seguro entre a aplicação cliente e o banco de dados.  
+  - Responsável por validar logins das clínicas e fornecer os detalhes de conexão corretos.  
+
+### 🔹 Cliente (Aplicação Desktop)
+- **Interface Gráfica (CustomTkinter)**  
+  - Construída em **CustomTkinter** para uma aparência moderna e responsiva.  
+
+- **Cliente de API (`api_client.py`)**  
+  - Responsável pelas chamadas de rede para a API no servidor.  
+
+- **Gestor de Banco de Dados (`database_manager.py`)**  
+  - Após autenticação, conecta-se diretamente ao banco da clínica para realizar operações do dia a dia.  
+
+---
+
+## 📂 Estrutura de Diretórios
+
+```
 /
-├── main.py                          # Application entry point
-├── models/                          # Data models
+├── main.py                   # Ponto de entrada da aplicação cliente
+├── api_clinica.py            # (Servidor) API Flask para gestão de logins
+├── popular_db.py              # (Servidor) Script para popular os bancos
+├── migracao_db.py             # Script para migrar dados do SQLite -> PostgreSQL
+├── .gitignore                 # Arquivos a serem ignorados pelo Git
+
+├── icons/                     # Ícones da interface
+│   ├── home.png
+│   ├── agenda.png
+│   ├── pacientes.png
+│   ├── procedimentos.png
+│   └── profissionais.png
+
+├── gui/                       # Interface gráfica
+│   ├── main_window.py         # Janela principal
+│   ├── clinic_login_window.py # Login da clínica
+│   ├── login_window.py        # Login do profissional
+│   ├── main_interface.py      # Layout com navegação
 │   ├── __init__.py
-│   ├── profissional.py               # Professional model (with access code)
-│   ├── paciente.py                   # Patient model
-│   ├── procedimento.py               # Procedure model
-│   └── agendamento.py                # Appointment model
-├── database/                        # Database management
-│   ├── __init__.py
-│   └── database_manager.py           # Handles database operations
-├── services/                        # Business logic
-│   ├── __init__.py
-│   └── auth_service.py               # Authentication logic
-├── gui/                             # GUI components
-│   ├── __init__.py
-│   ├── main_window.py                # Main application window
-│   ├── login_window.py               # Login screen
-│   ├── main_interface.py             # Main interface after login
-│   ├── tabs/                        # Interface tabs
-│   │   ├── __init__.py
-│   │   ├── base_tab.py               # Base class for tabs
-│   │   ├── calendario_tab.py          # Calendar tab
-│   │   └── ...                       # Other tabs
-│   └── dialogs/                     # Dialog windows
-│       ├── __init__.py
-│       └── profissional_dialog.py     # Dialog for professional registration
-└── uploads/                         # Temporary uploads (if needed)
-File Description Inventory
-main.py: Initializes and runs the application.
-models/: Contains classes for data representation.
-database/: Manages database connections and queries.
-services/: Implements business logic and authentication.
-gui/: Provides the graphical user interface components.
-Technology Stack
-Python: Programming language used for development.
-Tkinter: GUI toolkit for creating the user interface.
-SQLite: Lightweight database for data storage.
-Usage
-Install dependencies (if any).
-Run the application using:
-python main.py
-Follow the prompts to log in or register a new professional.
+│   ├── tabs/                  # Abas da aplicação
+│   │   ├── inicio_tab.py
+│   │   ├── pacientes_tab.py
+│   │   ├── agenda_tab.py
+│   │   ├── procedimentos_tab.py
+│   │   ├── profissionais_tab.py
+│   │   └── base_tab.py
+│   └── dialogs/               # Janelas de diálogo
+│       ├── paciente_dialog.py
+│       ├── profissional_dialog.py
+│       ├── procedimento_dialog.py
+│       └── agendamento_dialog.py
+
+├── database/                  # Acesso ao banco de dados
+│   ├── database_manager.py
+│   └── __init__.py
+
+├── models/                    # Classes de dados
+│   ├── paciente.py
+│   ├── agendamento.py
+│   ├── procedimento.py
+│   ├── profissional.py
+│   └── __init__.py
+
+├── Images/                    # Logos
+│   └── Nexa_login.jpg
+
+└── services/                  # Lógica de negócio
+    ├── auth_service.py
+    └── __init__.py
+```
+
+---
+
+## ⚙️ Tecnologias Utilizadas
+
+- **Linguagem:** Python  
+- **Interface Gráfica:** CustomTkinter, Pillow (PIL)  
+- **Banco de Dados:** PostgreSQL  
+- **API do Servidor:** Flask  
+- **Comunicação Cliente-Servidor:** Requests  
+
+---
+
+## 📄 Licença
+Este projeto é de uso privado e não possui licença pública definida.  
+Entre em contato com o autor para informações sobre utilização.
+
+---
+💻 Desenvolvido com dedicação para gestão eficiente de clínicas.
